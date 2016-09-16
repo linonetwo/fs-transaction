@@ -24,27 +24,27 @@ const fs = {
   rollbackStack: [],
   fileNameMap: {}, // 用于保存文件名和临时文件名之间的映射，以后对于所有输入的路径，都看看有没有能用这里面的路径替换掉的
 
-  commit: (callbackWhenDone) => sequencePromise(fs.commitStack)
-    .then(result => {
+  commit: callbackWhenDone => sequencePromise(fs.commitStack)
+    .then((result) => {
       fs.rollbackStack = fs.commitStack = [];
       fs.fileNameMap = {};
-      return Promise.resolve(typeof(callbackWhenDone) === 'function' ? callbackWhenDone(result) : result);
+      return Promise.resolve(typeof (callbackWhenDone) === 'function' ? callbackWhenDone(result) : result);
     }),
 
-  rollback: (callbackWhenDone) => sequencePromise(fs.rollbackStack)
-    .then(result => {
+  rollback: callbackWhenDone => sequencePromise(fs.rollbackStack)
+    .then((result) => {
       fs.rollbackStack = fs.commitStack = [];
       fs.fileNameMap = {};
-      return Promise.resolve(typeof(callbackWhenDone) === 'function' ? callbackWhenDone(result) : result);
+      return Promise.resolve(typeof (callbackWhenDone) === 'function' ? callbackWhenDone(result) : result);
     }),
 
 
-  addToCommit: (someFunctionReturnsPromise) => typeof(someFunctionReturnsPromise) === 'function' ?
+  addToCommit: someFunctionReturnsPromise => typeof (someFunctionReturnsPromise) === 'function' ?
       Promise.resolve(fs.commitStack.unshift(someFunctionReturnsPromise)) :
       Promise.reject(`addToCommit Error: ${someFunctionReturnsPromise} is not a function`),
 
 
-  addToRollback: (someFunctionReturnsPromise) => typeof(someFunctionReturnsPromise) === 'function' ?
+  addToRollback: someFunctionReturnsPromise => typeof (someFunctionReturnsPromise) === 'function' ?
       Promise.resolve(fs.rollbackStack.unshift(someFunctionReturnsPromise)) :
       Promise.reject(`addToRollback Error: ${someFunctionReturnsPromise} is not a function`),
 

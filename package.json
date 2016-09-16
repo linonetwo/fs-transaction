@@ -1,10 +1,10 @@
 {
   "name": "fs-transaction",
-  "version": "1.0.2",
+  "version": "1.0.5",
   "description": "fs with rollback and commit, suitable for maintaining filesystem sync with database.",
   "main": "build/fs-transaction.js",
   "scripts": {
-    "test": "test",
+    "test": "node ./node_modules/mocha/bin/mocha -s 250 -c __test__/* --compilers js:babel-core/register --watch",
     "build": "babel src -d build"
   },
   "repository": {
@@ -37,6 +37,16 @@
     "babel-plugin-typecheck": "^3.9.0",
     "babel-preset-es2015": "^6.14.0",
     "babel-preset-latest": "^6.14.0",
-    "babel-preset-stage-0": "^6.5.0"
+    "babel-preset-stage-0": "^6.5.0",
+    "chai": "^3.5.0",
+    "chai-fs": "^0.1.0",
+    "eslint": "^3.5.0",
+    "eslint-config-airbnb": "^11.1.0",
+    "eslint-plugin-babel": "^3.3.0",
+    "eslint-plugin-flowtype": "^2.18.1",
+    "eslint-plugin-import": "^1.15.0",
+    "eslint-plugin-jsx-a11y": "^2.2.2",
+    "eslint-plugin-react": "^6.2.2",
+    "mocha": "^3.0.2"
   }
 }
