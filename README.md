@@ -1,6 +1,14 @@
 # fs-transaction
-fs with rollback and commit, suitable for letting filesystem sync with database.
+fs with rollback and commit, suitable for letting filesystem in sync with database.
   
+## install && import
+```
+npm i -S fs-transaction
+```
+  
+```javasctipt
+import fs from 'fs-transaction';
+```
 ## Current usage
 ```javascript
 // in an async function
@@ -50,3 +58,6 @@ async function atomicFileSystemOperation() {
   writeStream.end();
 }
 ```
+  
+## Building block
+This package is built on fs-promise, who includes a full feature fs module.
