@@ -60,4 +60,9 @@ async function atomicFileSystemOperation() {
 ```
   
 ## Building block
-This package is built on fs-promise, who includes a full feature fs module.
+This package is built on fs-promise, who includes a full feature fs module.  
+  
+## Who is using this (as an Example)  
+[ShanghaiTechSemanticServer](https://github.com/Learnone/ShanghaiTechAPPServer) : using it to sync files together with metadata on the database.
+  
+## PR is welcome!
