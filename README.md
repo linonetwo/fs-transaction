@@ -27,7 +27,7 @@ await tx.commit();
 ```
 or using promise
 ```javascript
-// in an es6+ function
+// in an es6+ function with bluebird Promise
 const tx = fs.beginTransaction();
 
 return Promise.try(() =>
