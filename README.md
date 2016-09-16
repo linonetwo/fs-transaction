@@ -75,25 +75,29 @@ As my friend @9173860 suggested, using a temp folder is better:
 - Rollbacking, merge things in 「.trash」 folder out, then delete 「.tx-${uuid}」
 - Merging, move files under 「.tx-${uuid}」 to current folder, then for each folder, folder exist ? merge this folder : move this folder (need further discussion)
   
-### Dealing edge case  
+### Dealing with edge case  
 Async calls execute in an enigmatic order, so there will be many edge cases. But our only goal is to keep the Eventually Consistent.  
-Here are my analysis. They are written in the tests.  
+Conflict occurs when we are trying to operate things on the same folder, or on folder and folder's sub folder. Here are my analysis. They are written in the tests.  
   
 
 - tx1 add file1.md to /a , tx2 delete /a √  
-Hoping to have / , since tx1 won't mkdir a, because if a don't exist, there won't be tx2 to delete a    
-1: tx1 add -- 2: tx2 delete  
+Hoping to have / , since tx1 won't mkdir a, because if a don't exist, there won't be tx2 to delete a  
+  
+case 1: tx1 add -- 2: tx2 delete  
 1: /a/.tx-someuuidbytx1/file1.md  
 2: /.tx-someuuidbytx2/.trash/a/file1.md  
 1commit: rollback due to /a/.tx-someuuidbytx1 no found, rollback fail due to /a/.tx-someuuidbytx1 no found  
 2commit: √  
   
-1: tx2 delete -- 2: tx1 add  
+case 1: tx2 delete -- 2: tx1 add  
 1: /.tx-someuuidbytx2/.trash/a
 2: rollback due to /a no found, rollback fail due to /a no found  
 1commit: √  
+  
+*We can learn that if commit or rollback procedure get into a no found error on some file, just simply drop this file.*  
 
-- tx1 add file1.md to /a , tx2 delete /a  
+- tx1 mkdir /a and create /a/file1.md, tx2 mkdir /a and mkdir /a/b and create /a/b/file2.md  
 
 
 ## PR is welcome!
+I'm kind of busy recently, analysis are hastily made. Were there any flaw on the analysis, please consider making a PR or clearly issue your analysis :D    
