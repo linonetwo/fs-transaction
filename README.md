@@ -1,5 +1,5 @@
 # fs-transaction
-fs with rollback and commit, suitable for maintaining filesystem sync with database.
+fs with rollback and commit, suitable for letting filesystem sync with database.
   
 ## Current usage
 ```javascript
