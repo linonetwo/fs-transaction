@@ -1,6 +1,7 @@
 import * as fsp from 'fs-promise';
-import sequencePromise from './sequencePromise';
 import * as path from 'path';
+
+import sequencePromise from './sequencePromise';
 
 // utils
 // 用来换掉路径中还没 commit 的临时目录名
