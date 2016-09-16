@@ -50,9 +50,9 @@ I will experimentally move transaction feature into a decorator. Making it write
 ```javascript
 @transactional
 async function atomicFileSystemOperation() {
-  await tx.mkdir('aDir');
+  await fs.mkdir('aDir');
   
-  const writeStream = await tx.createWriteStream('aDir/aFile.md');
+  const writeStream = await fs.createWriteStream('aDir/aFile.md');
 
   writeStream.write('# markdown');
   writeStream.end();
