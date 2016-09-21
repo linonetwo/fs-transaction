@@ -1,4 +1,6 @@
 import * as fsp from 'fs-promise';
+import { v4 as uuid } from 'node-uuid';
+
 import sequencePromise from './sequencePromise';
 import * as path from 'path';
 
@@ -12,17 +14,20 @@ const replaceTempPath = (incomingPath, replaceSet) =>
 // console.log( replaceTempPath('a\\b\\c\\aaa.txt', { 'a\\b': 'a\\~b', 'a\\~b\\c': 'a\\~b\\~c' }) );
 
 
-// 为了方便大量涉及文件操作的 API 的撰写，我决定将部分会涉及到的文件操作事务化，也就是让非幂等的操作都变成 mkdirT() 这样，T 的意思是 Transaction。
-// 这些操作只有当调用 commitFs() 时才会对文件系统产生永久性的影响，而当调用 rollbackFs() 后都会被撤销
-// 然而情况涉及到多个操作并发，以及读操作想要读事务性写操作的结果做条件判断，创了又删删了又创中间还往里移动了东西，需要从 req 创建输入流 等等坑，我觉得我只能完成一些常见情况。
-// 想想看，我可能需要删掉某个文档：这就先改个名，回滚是改回名，提交是真删掉 ;创建一个文件夹：创就创了呗，回滚是删掉，提交不做啥（如果遵循栈的话就很自然） ;创建文件类似
-// 写入文件：就先复制一个成别的名字，回滚是删掉它，提交是覆盖原文件
+class Transaction {
+  constructor(fsFunctions: Object) {
+    this.uuid = uuid();
+    this.fs = fsFunctions;
+  }
 
-// 注意两个调用之间得用 then 连接，不然可能会竞争 commitStack
+}
+
+
 const fs = {
-  commitStack: [],
-  rollbackStack: [],
   fileNameMap: {}, // 用于保存文件名和临时文件名之间的映射，以后对于所有输入的路径，都看看有没有能用这里面的路径替换掉的
+  beginTransaction: () => {
+    return new Transaction(fs);
+  },
 
   commit: (callbackWhenDone) => sequencePromise(fs.commitStack)
     .then(result => {
