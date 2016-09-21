@@ -1,11 +1,9 @@
-/*eslint no-use-before-define: ["error", { "classes": false }]*/
+/* eslint no-use-before-define: ["error", { "classes": false }]*/
 import * as fsp from 'fs-promise';
 import { v4 as uuid } from 'node-uuid';
 import path from 'path';
 
 import sequencePromise from './sequencePromise';
-
-
 
 
 
@@ -22,33 +20,18 @@ class Transaction {
   constructor(fsFunctions: Object) {
     this.uuid = uuid();
     this.fs = { ...fsFunctions, beginTransaction: undefined };
+    this.baseDir = '';
   }
 
   // 创建一个临时文件夹，在里面创建文件夹
+  // 当然自己也要做判断：如果文件夹已经存在就
   static async mkdir(dirPath, mode) {
-    try {
-      const dirPathExisted = await fsp.exists(dirPath);
-      if (dirPathExisted) {
-        return Promise.reject(`mkdirT Error: ${dirPath} already exists, may means you use an uuid or something for filename that has already been used`);
-      }
-    } catch(error) {
-
+    const dirPathExisted = await fsp.exists(dirPath);
+    if (dirPathExisted) {
+      throw new Error(`mkdirT Error: ${dirPath} already exists, may means you use an uuid or something for filename that has already been used`);
     }
-
-    return .then((existsDirPath) => {
-      if (existsDirPath) {
-        return Promise.reject(`mkdirT Error: ${replacedDirPath} already exists, may means you use an uuid or something for filename that has already been used`);
-      }
-      const newPath = path.join(path.dirname(replacedDirPath), `~mkdirT~${path.basename(replacedDirPath)}`);// 创建一个加 ~ 文件夹子，表示这只是暂时的，可能会被回滚
-      fs.fileNameMap[replacedDirPath] = newPath;
-
-      fs.rollbackStack.unshift(() => { if (fsp.existsSync(newPath)) { return fsp.rmdir(newPath); } }); // 入栈一个回滚操作：删掉临时文件
-      fs.commitStack.unshift(() => { if (fsp.existsSync(newPath)) { return fsp.rename(newPath, replacedDirPath); } }); // 入栈一个提交操作：把文件名改成正常版本 // issue:因为有时候会莫名其妙无法找到
-      // 说什么 [Error: ENOENT: no such file or directory, rename 'C:\Users\onetwo\Desktop\testDBforPoselevel\poselevel\~mkdirT~USER' -> 'C:\Users\onetwo\Desktop\testDBforPoselevel\poselevel\USER']  errno: -4058,
-      // 我至今不知道为啥
-
-      return fsp.mkdir(newPath, mode); // 这是个 Promise
-    });
+    const newPath = path.join(path.dirname(replacedDirPath), `~mkdirT~${path.basename(replacedDirPath)}`);// 创建一个加 ~ 文件夹子，表示这只是暂时的，可能会被回滚
+    fsp.mkdir(newPath, mode);
   }
 
 
