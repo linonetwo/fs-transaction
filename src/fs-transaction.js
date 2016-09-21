@@ -4,6 +4,8 @@ import { v4 as uuid } from 'node-uuid';
 import sequencePromise from './sequencePromise';
 import * as path from 'path';
 
+import sequencePromise from './sequencePromise';
+
 // utils
 // 用来换掉路径中还没 commit 的临时目录名
 const replaceTempPath = (incomingPath, replaceSet) =>
@@ -29,27 +31,27 @@ const fs = {
     return new Transaction(fs);
   },
 
-  commit: (callbackWhenDone) => sequencePromise(fs.commitStack)
-    .then(result => {
+  commit: callbackWhenDone => sequencePromise(fs.commitStack)
+    .then((result) => {
       fs.rollbackStack = fs.commitStack = [];
       fs.fileNameMap = {};
-      return Promise.resolve(typeof(callbackWhenDone) === 'function' ? callbackWhenDone(result) : result);
+      return Promise.resolve(typeof (callbackWhenDone) === 'function' ? callbackWhenDone(result) : result);
     }),
 
-  rollback: (callbackWhenDone) => sequencePromise(fs.rollbackStack)
-    .then(result => {
+  rollback: callbackWhenDone => sequencePromise(fs.rollbackStack)
+    .then((result) => {
       fs.rollbackStack = fs.commitStack = [];
       fs.fileNameMap = {};
-      return Promise.resolve(typeof(callbackWhenDone) === 'function' ? callbackWhenDone(result) : result);
+      return Promise.resolve(typeof (callbackWhenDone) === 'function' ? callbackWhenDone(result) : result);
     }),
 
 
-  addToCommit: (someFunctionReturnsPromise) => typeof(someFunctionReturnsPromise) === 'function' ?
+  addToCommit: someFunctionReturnsPromise => typeof (someFunctionReturnsPromise) === 'function' ?
       Promise.resolve(fs.commitStack.unshift(someFunctionReturnsPromise)) :
       Promise.reject(`addToCommit Error: ${someFunctionReturnsPromise} is not a function`),
 
 
-  addToRollback: (someFunctionReturnsPromise) => typeof(someFunctionReturnsPromise) === 'function' ?
+  addToRollback: someFunctionReturnsPromise => typeof (someFunctionReturnsPromise) === 'function' ?
       Promise.resolve(fs.rollbackStack.unshift(someFunctionReturnsPromise)) :
       Promise.reject(`addToRollback Error: ${someFunctionReturnsPromise} is not a function`),
 
