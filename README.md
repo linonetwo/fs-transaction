@@ -45,7 +45,20 @@ return Promise.try(() =>
 )
 ```
 
-## Decorator usage
+## Don't need a transaction?
+This package wraps the fs-promise, so you can just regard it as an fs-promise instance, when not calling ```beginTransaction()```.  
+```javascript
+// in an async function
+await fs.mkdir('aDir');
+
+const writeStream = await fs.createWriteStream('aDir/aFile.md');
+
+writeStream.write('# markdown');
+writeStream.end();
+```
+Well, almost the same. The only difference is the missing of ```commit()``` and the disappearance of it's atomic characteristic.   
+
+## Decorator?
 I will experimentally move transaction feature into a decorator. Making it writes just like writing 「fs-promise」, but I'm not sure whether this is necessary.
 ```javascript
 @transactional

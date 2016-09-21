@@ -1,65 +1,41 @@
+/*eslint no-use-before-define: ["error", { "classes": false }]*/
 import * as fsp from 'fs-promise';
 import { v4 as uuid } from 'node-uuid';
+import path from 'path';
 
 import sequencePromise from './sequencePromise';
-import * as path from 'path';
-
-import sequencePromise from './sequencePromise';
-
-// utils
-// 用来换掉路径中还没 commit 的临时目录名
-const replaceTempPath = (incomingPath, replaceSet) =>
-  incomingPath.split(path.sep).reduce(
-    (previousValue, currentValue) => // (previousValue, currentValue, currentIndex, array) =>
-    path.join(replaceSet[previousValue] !== undefined ? replaceSet[previousValue] : previousValue, currentValue)
-  );
-// console.log( replaceTempPath('a\\b\\c\\aaa.txt', { 'a\\b': 'a\\~b', 'a\\~b\\c': 'a\\~b\\~c' }) );
 
 
-class Transaction {
-  constructor(fsFunctions: Object) {
-    this.uuid = uuid();
-    this.fs = fsFunctions;
-  }
 
-}
+
 
 
 const fs = {
   fileNameMap: {}, // 用于保存文件名和临时文件名之间的映射，以后对于所有输入的路径，都看看有没有能用这里面的路径替换掉的
-  beginTransaction: () => {
-    return new Transaction(fs);
-  },
 
-  commit: callbackWhenDone => sequencePromise(fs.commitStack)
-    .then((result) => {
-      fs.rollbackStack = fs.commitStack = [];
-      fs.fileNameMap = {};
-      return Promise.resolve(typeof (callbackWhenDone) === 'function' ? callbackWhenDone(result) : result);
-    }),
+  beginTransaction: () => new Transaction(fs),
 
-  rollback: callbackWhenDone => sequencePromise(fs.rollbackStack)
-    .then((result) => {
-      fs.rollbackStack = fs.commitStack = [];
-      fs.fileNameMap = {};
-      return Promise.resolve(typeof (callbackWhenDone) === 'function' ? callbackWhenDone(result) : result);
-    }),
+  ...fsp
+};
 
+class Transaction {
+  constructor(fsFunctions: Object) {
+    this.uuid = uuid();
+    this.fs = { ...fsFunctions, beginTransaction: undefined };
+  }
 
-  addToCommit: someFunctionReturnsPromise => typeof (someFunctionReturnsPromise) === 'function' ?
-      Promise.resolve(fs.commitStack.unshift(someFunctionReturnsPromise)) :
-      Promise.reject(`addToCommit Error: ${someFunctionReturnsPromise} is not a function`),
+  // 创建一个临时文件夹，在里面创建文件夹
+  static async mkdir(dirPath, mode) {
+    try {
+      const dirPathExisted = await fsp.exists(dirPath);
+      if (dirPathExisted) {
+        return Promise.reject(`mkdirT Error: ${dirPath} already exists, may means you use an uuid or something for filename that has already been used`);
+      }
+    } catch(error) {
 
+    }
 
-  addToRollback: someFunctionReturnsPromise => typeof (someFunctionReturnsPromise) === 'function' ?
-      Promise.resolve(fs.rollbackStack.unshift(someFunctionReturnsPromise)) :
-      Promise.reject(`addToRollback Error: ${someFunctionReturnsPromise} is not a function`),
-
-
-  mkdirT: (dirPath, mode) => {
-    const replacedDirPath = replaceTempPath(dirPath, fs.fileNameMap);
-
-    return fsp.exists(replacedDirPath).then((existsDirPath) => {
+    return .then((existsDirPath) => {
       if (existsDirPath) {
         return Promise.reject(`mkdirT Error: ${replacedDirPath} already exists, may means you use an uuid or something for filename that has already been used`);
       }
@@ -73,10 +49,10 @@ const fs = {
 
       return fsp.mkdir(newPath, mode); // 这是个 Promise
     });
-  },
+  }
 
 
-  mkdirRecursiveT: (dirpath, dirname) => {
+  static mkdirRecursiveT(dirpath, dirname) {
     if (typeof dirname === 'undefined') { // 判断是否是第一次调用
       if (fsp.existsSync(dirpath)) {
         return Promise.resolve();
@@ -91,10 +67,10 @@ const fs = {
     }
     return fs.mkdirRecursiveT(dirname, path.dirname(dirname))
     .then(() => fs.mkdirT(dirpath));
-  },
+  }
 
 
-  removeT: (dirPath) => {
+  static removeT(dirPath) {
     const replacedDirPath = replaceTempPath(dirPath, fs.fileNameMap);
 
     return fsp.exists(replacedDirPath).then((existsDirPath) => {
@@ -109,10 +85,10 @@ const fs = {
 
       return fsp.rename(replacedDirPath, newPath); // 这是个 Promise
     });
-  },
+  }
 
 
-  createWriteStreamT: (filePath, options) => { // https://nodejs.org/api/fs.html#fs_fs_createwritestream_path_options 原生不支持链式调用
+  static createWriteStreamT(filePath, options) { // https://nodejs.org/api/fs.html#fs_fs_createwritestream_path_options 原生不支持链式调用
     const replacedFilePath = replaceTempPath(filePath, fs.fileNameMap);
     const newPath = path.join(path.dirname(replacedFilePath), `~createWriteStreamT~${path.basename(replacedFilePath)}`);// 创建一个加 ~ 文件，表示这只是暂时的，可能会被回滚
     fs.fileNameMap[replacedFilePath] = newPath;
@@ -125,10 +101,13 @@ const fs = {
 
     const _writeStream = fsp.createWriteStream(newPath, options); // 开始创建文件输入流
     return Promise.resolve(_writeStream); // 用起来像 fs.createWriteStreamT('aaa.xml').then(writeStream => {writeStream.write('asdffff'); writeStream.end()}).then(() => fs.commit()).catch(err => console.log(err));
-  },
+  }
 
-  ...fsp
-};
+
+}
+
+
+
 
 // fs.mkdirRecursiveT('aaa\\bbb\\ccc')
 // .then( () => fs.commit(() => console.log('commit', new Date().getTime())) )
