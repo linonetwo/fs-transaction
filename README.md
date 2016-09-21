@@ -88,6 +88,8 @@ As my friend @9173860 suggested, using a temp folder is better:
 - Rollbacking, merge things in 「.trash」 folder out, then delete 「.tx-${uuid}」
 - Merging, move files under 「.tx-${uuid}」 to current folder, then for each folder, folder exist ? merge this folder : move this folder (need further discussion)
   
+Now I'm using [node-temp](https://github.com/bruce/node-temp)'s promisified version [promised-temp](https://github.com/mikaturunen/promised-temp) to create temp file at system specific temp folder.  
+  
 ### Dealing with edge case  
 Async calls execute in an enigmatic order, so there will be many edge cases. But our only goal is to keep the Eventually Consistent.  
 Conflict occurs when we are trying to operate things on the same folder, or on folder and folder's sub folder. Here are my analysis. They are written in the tests.  

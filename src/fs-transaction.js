@@ -1,9 +1,12 @@
 /* eslint no-use-before-define: ["error", { "classes": false }]*/
-import * as fsp from 'fs-promise';
+import fsp from 'fs-promise';
 import { v4 as uuid } from 'node-uuid';
 import path from 'path';
+import temp from 'promised-temp';
 
 import sequencePromise from './sequencePromise';
+
+import { MISSING_IMPORTANT_FILE } from './errorTypes';
 
 
 
@@ -20,18 +23,39 @@ class Transaction {
   constructor(fsFunctions: Object) {
     this.uuid = uuid();
     this.fs = { ...fsFunctions, beginTransaction: undefined };
-    this.baseDir = '';
+    this.tempFolderPath = '';
+    this.tempFolderCreated = false;
+    this.affixes = {
+      prefix: 'tempFolder',
+      suffix: '.transaction-fs'
+    };
   }
 
-  // 创建一个临时文件夹，在里面创建文件夹
-  // 当然自己也要做判断：如果文件夹已经存在就
-  static async mkdir(dirPath, mode) {
-    const dirPathExisted = await fsp.exists(dirPath);
-    if (dirPathExisted) {
-      throw new Error(`mkdirT Error: ${dirPath} already exists, may means you use an uuid or something for filename that has already been used`);
+  // 自己也要做判断：如果临时文件夹已存在就不创建了，如果想创建的文件夹已经存在就不创建了
+  async exists(newThingPath) {
+    if (await fsp.exists(newThingPath)) {
+      throw new Error(`mkdirT Error: ${newThingPath} already exists, may means you use an uuid or something for filename that has already been used`);
     }
-    const newPath = path.join(path.dirname(replacedDirPath), `~mkdirT~${path.basename(replacedDirPath)}`);// 创建一个加 ~ 文件夹子，表示这只是暂时的，可能会被回滚
-    fsp.mkdir(newPath, mode);
+    if (!this.tempFolderCreated) {
+      this.tempFolderPath = await temp.mkdir(this.affixes);
+      this.tempFolderCreated = true;
+    }
+    if (this.tempFolderCreated && !await fsp.exists(this.tempFolderPath)) {
+      throw new Error(`${MISSING_IMPORTANT_FILE} -at mkdir() -with ${this.tempFolderPath}`);
+    }
+  }
+
+  // 创建一个临时文件夹，在里面创建想创建的文件夹
+  // 
+  // 然后在
+  async mkdir(dirPath, mode) {
+    try {
+      await this.exists(dirPath);
+      const newPath = path.join(path.dirname(replacedDirPath), `~mkdirT~${path.basename(replacedDirPath)}`);// 创建一个加 ~ 文件夹子，表示这只是暂时的，可能会被回滚
+      fsp.mkdir(newPath, mode);
+    } catch (error) {
+      throw error;
+    }
   }
 
 
