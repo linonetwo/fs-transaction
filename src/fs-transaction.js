@@ -14,15 +14,21 @@ import { MISSING_IMPORTANT_FILE } from './errorTypes';
 const fs = {
   fileNameMap: {}, // 用于保存文件名和临时文件名之间的映射，以后对于所有输入的路径，都看看有没有能用这里面的路径替换掉的
 
-  beginTransaction: () => new Transaction(fs),
+  beginTransaction: (...config) => new Transaction({ ...config, fsFunctions: fs }),
 
   ...fsp
 };
 
+type transactionConfig = {
+  basePath: ?string;
+  fsFunctions: fs;
+}
 class Transaction {
-  constructor(fsFunctions: Object) {
+  constructor({ basePath, fsFunctions }: transactionConfig) {
     this.uuid = uuid();
     this.fs = { ...fsFunctions, beginTransaction: undefined };
+
+    this.basePath = (basePath && fsp.existsSync(basePath)) || process.cwd();
     this.tempFolderPath = '';
     this.tempFolderCreated = false;
     this.affixes = {
@@ -46,12 +52,12 @@ class Transaction {
   }
 
   // 创建一个临时文件夹，在里面创建想创建的文件夹
-  // 
+  //
   // 然后在
   async mkdir(dirPath, mode) {
     try {
       await this.exists(dirPath);
-      const newPath = path.join(path.dirname(replacedDirPath), `~mkdirT~${path.basename(replacedDirPath)}`);// 创建一个加 ~ 文件夹子，表示这只是暂时的，可能会被回滚
+      const newPath = path.join(this.basePath, `~mkdirT~${path.basename(replacedDirPath)}`);// 创建一个加 ~ 文件夹子，表示这只是暂时的，可能会被回滚
       fsp.mkdir(newPath, mode);
     } catch (error) {
       throw error;

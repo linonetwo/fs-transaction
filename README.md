@@ -43,7 +43,20 @@ return Promise.try(() =>
 .then(() =>
   tx.commit()
 )
+```  
+
+## Config
+We have following configs:  
+- base: base path for all operations, if not provided, ```process.cwd()``` will be used  
+(absolute path and ```../``` is not supported currently, since they may not be the common usage, 
+and supporting them may cause performance problem —— 
+this package is mainly for metadata server programs that can't stand this.)
+```javascript
+// in an async function
+const tx = fs.beginTransaction({ base: '../fileStorage/myfiles/' });
 ```
+
+
 
 ## Don't need a transaction?
 This package wraps the fs-promise, so you can just regard it as an fs-promise instance, when not calling ```beginTransaction()```.  
@@ -61,7 +74,7 @@ Well, almost the same. The only difference is the missing of ```commit()``` and 
 ## Decorator?
 I will experimentally move transaction feature into a decorator. Making it writes just like writing 「fs-promise」, but I'm not sure whether this is necessary.
 ```javascript
-@transactional
+@transactional({ base: '../fileStorage/myfiles/' })
 async function atomicFileSystemOperation() {
   await fs.mkdir('aDir');
   
