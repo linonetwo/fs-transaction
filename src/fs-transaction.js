@@ -6,7 +6,7 @@ import temp from 'promised-temp';
 
 import sequencePromise from './sequencePromise';
 
-import { MISSING_IMPORTANT_FILE } from './errorTypes';
+import { MISSING_IMPORTANT_FILE, ALREADY_EXIST } from './errorTypes';
 
 
 
@@ -40,24 +40,25 @@ class Transaction {
   // 自己也要做判断：如果临时文件夹已存在就不创建了，如果想创建的文件夹已经存在就不创建了
   async exists(newThingPath) {
     if (await fsp.exists(newThingPath)) {
-      throw new Error(`mkdirT Error: ${newThingPath} already exists, may means you use an uuid or something for filename that has already been used`);
+      throw new Error(ALREADY_EXIST, 'exists()  ', newThingPath);
     }
     if (!this.tempFolderCreated) {
       this.tempFolderPath = await temp.mkdir(this.affixes);
       this.tempFolderCreated = true;
     }
     if (this.tempFolderCreated && !await fsp.exists(this.tempFolderPath)) {
-      throw new Error(`${MISSING_IMPORTANT_FILE} -at mkdir() -with ${this.tempFolderPath}`);
+      throw new Error(MISSING_IMPORTANT_FILE, 'mkdir()  ', this.tempFolderPath);
     }
   }
 
-  // 创建一个临时文件夹，在里面创建想创建的文件夹
-  //
-  // 然后在
+
+  // 创建一个临时文件夹，在里面创建想创建的文件夹：
+  // 先判断
+  // 然后对于 a/b/c d ，只创建一个 temp/a/b/c/d
   async mkdir(dirPath, mode) {
     try {
       await this.exists(dirPath);
-      const newPath = path.join(this.basePath, `~mkdirT~${path.basename(replacedDirPath)}`);// 创建一个加 ~ 文件夹子，表示这只是暂时的，可能会被回滚
+      const newPath = path.join(this.basePath, path.dirname(dirPath));
       fsp.mkdir(newPath, mode);
     } catch (error) {
       throw error;
@@ -101,7 +102,7 @@ class Transaction {
   }
 
 
-  static createWriteStreamT(filePath, options) { // https://nodejs.org/api/fs.html#fs_fs_createwritestream_path_options 原生不支持链式调用
+  createWriteStreamT(filePath, options) { // https://nodejs.org/api/fs.html#fs_fs_createwritestream_path_options 原生不支持链式调用
     const replacedFilePath = replaceTempPath(filePath, fs.fileNameMap);
     const newPath = path.join(path.dirname(replacedFilePath), `~createWriteStreamT~${path.basename(replacedFilePath)}`);// 创建一个加 ~ 文件，表示这只是暂时的，可能会被回滚
     fs.fileNameMap[replacedFilePath] = newPath;
