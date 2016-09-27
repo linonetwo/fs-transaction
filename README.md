@@ -79,7 +79,7 @@ This package is built on fs-promise, who includes a full feature fs module.
 [ShanghaiTechSemanticServer](https://github.com/Learnone/ShanghaiTechAPPServer) : using it to sync files together with metadata on the database.
   
 ## How it works
-I used support rollback by maintaining a commit stack and a rollback stack, but it suffers from high frequency async calls: Using it on a server, every query disturb each other.   
+I used to support rollback by [maintaining a commit stack and a rollback stack](https://github.com/linonetwo/fs-transaction/blob/master/doc/originalThinking.md), but it suffers from high frequency async calls: Using it on a server, every query disturb each other.   
 
 As my friend @9173860 suggested, using a temp folder is better:  
 - Doing Create/Update, C/U things in the folder with name 「.tx-${uuid}」
@@ -92,11 +92,7 @@ Now I'm using [node-temp](https://github.com/bruce/node-temp)'s promisified vers
   
 ### Dealing with edge case  
 Async calls execute in an enigmatic order, so there will be many edge cases. But our only goal is to keep the Eventually Consistent.  
-Conflict occurs when we are trying to operate things on the same folder, or on folder and folder's sub folder. Here are my analysis. They are written in the tests.  
-  
-
-
-
+Conflict occurs when we are trying to operate things on the same folder, or on folder and folder's sub folder. [Here](https://github.com/linonetwo/fs-transaction/blob/master/doc/usingTempDir.md) are my analysis. They are also written in the tests.  
 
 ## PR is welcome!
 I'm kind of busy recently, analysis are hastily made. Were there any flaw on the analysis, please consider making a PR or clearly issue your analysis :D    

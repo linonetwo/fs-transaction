@@ -1,9 +1,14 @@
 ## EdgeCases
 
 ### Making Temporary Dir  
-- doing sth. C/U on /a/b, then doing C/U on /a
+- doing sth. C/U on /a/b, then doing C/U on /a, in one thread
 Hoping to make change to both folder, atomicly.
-
+  
+0: check ${basePath}/a/b exists  
+1: C:\Users\onetwo\AppData\Local\Temp\0d3710e9-2274-4d02-b69b-02738d725b84116822-19252-1j1w6d5.cif36usor.transaction-fs\a\b\foo  
+2: check ${basePath}/a exists  
+3: C:\Users\onetwo\AppData\Local\Temp\0d3710e9-2274-4d02-b69b-02738d725b84116822-19252-1j1w6d5.cif36usor.transaction-fs\a\bar  
+4: 
 
 
 ### Multithread
