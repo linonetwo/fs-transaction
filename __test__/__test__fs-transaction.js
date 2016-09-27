@@ -13,12 +13,18 @@ const { expect, should } = chai;
 
 describe('basic fs characteristic', () => {
   let tx = {};
+  const basePath = './__test__/testFile';
 
   before(() => {
   });
 
   beforeEach(() => {
-    tx = fs.beginTransaction();
+    fs.mkdirSync(basePath);
+    tx = fs.beginTransaction({ basePath });
+  });
+
+  afterEach(async () => {
+    await fs.rmdirRecursively(basePath);
   });
 
   it('new a tx, it have its v4uuid', () => {
@@ -29,20 +35,16 @@ describe('basic fs characteristic', () => {
     return expect(tx.fs).to.be.deep.equal({ ...fs, beginTransaction: undefined });
   });
 
-  it('new a tx, it have its fsFunctions, which is without beginTransaction() function', () => {
-    return expect(tx.fs).to.be.deep.equal({ ...fs, beginTransaction: undefined });
+  it('new a tx, it have its basePath', () => {
+    return expect(tx.basePath).to.be.equal(path.join(process.cwd(), basePath));
   });
 });
 
-describe('frequently used fs operations', () => {
-  let tx = {};
+describe('non-transactional helper functions', () => {
   const basePath = './__test__/testFile';
 
-  before(() => {
-  });
-
   beforeEach(() => {
-    tx = fs.beginTransaction();
+    fs.mkdirSync(basePath);
   });
 
   afterEach(async () => {
@@ -50,13 +52,13 @@ describe('frequently used fs operations', () => {
   });
 
   it('rmdirRecursively , remove a serious of nested folder and file inside', async () => {
-    const dirSeries = basePath + '/a/b/c/';
+    const dirSeries = path.join(basePath + '/a/b/c/');
 
     // nested folder
     await fs.mkdirRecursively(dirSeries);
 
     // with file
-    const writeStream = await fs.createWriteStream(dirSeries + 'aFile.md');
+    const writeStream = await fs.createWriteStream(path.join(dirSeries + 'aFile.md'));
     writeStream.write('# markdown');
     writeStream.end();
 
@@ -67,12 +69,33 @@ describe('frequently used fs operations', () => {
   });
 
   it('mkdirRecursively , there being a serious of folder with correct name', async () => {
-    const dirSeries = basePath + '/a/b/c/';
+    const dirSeries = path.join(basePath + '/a/b/c/');
     await fs.mkdirRecursively(dirSeries);
     expect(dirSeries).to.be.a.path();
   });
+});
+
+describe('frequently used fs-transaction operations', () => {
+  let tx = {};
+  const basePath = './__test__/testFile';
+
+  before(() => {
+  });
+
+  beforeEach(() => {
+    fs.mkdirSync(basePath);
+    tx = fs.beginTransaction({ basePath });
+  });
+
+  afterEach(async () => {
+    await fs.rmdirRecursively(basePath);
+  });
 
 
-  it('mkdir then commit, there being a folder with correct name', () => {
+  it('mkdir then commit, there being a folder with correct name', async () => {
+    const dirSeries = path.join(basePath + 'a/b/c/');
+    await tx.mkdir('a/b/c/');
+    await tx.commit();
+    expect(dirSeries).to.be.a.path();
   });
 });

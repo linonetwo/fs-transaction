@@ -3,11 +3,11 @@ import fsp from 'fs-promise';
 import { v4 as uuid } from 'node-uuid';
 import path from 'path';
 import temp from 'promised-temp';
+import merge from 'merge-dirs';
 
 import sequencePromise from './sequencePromise';
 
-import { MISSING_IMPORTANT_FILE, ALREADY_EXIST } from './errorTypes';
-
+import { MissingImportantFileError, AlreadyExistsError, NotSupportedError } from './errorTypes';
 
 type FsType = {
   beginTransaction: (config: TransactionConfigType) => Transaction; // eslint-disable-line
@@ -18,7 +18,7 @@ type FsType = {
 const fs: FsType = {
   // fileNameMap: {}, // 用于保存文件名和临时文件名之间的映射，以后对于所有输入的路径，都看看有没有能用这里面的路径替换掉的
 
-  beginTransaction: (...config) => new Transaction({ ...config, fsFunctions: fs }),
+  beginTransaction: (...config) => new Transaction(Object.assign({}, ...config, { fsFunctions: fs })),
 
   async mkdirRecursively(dirPath, dirName) {
     if (typeof dirName === 'undefined') { // 判断是否是第一次调用
@@ -33,8 +33,8 @@ const fs: FsType = {
     if (await fsp.exists(dirName)) { // 递归收尾，创建最深处的文件夹
       return fsp.mkdir(dirPath);
     }
-    return fs.mkdirRecursively(dirName, path.dirname(dirName))
-      .then(() => fsp.mkdir(dirPath));
+    await fs.mkdirRecursively(dirName, path.dirname(dirName));
+    return fsp.mkdir(dirPath);
   },
 
   async rmdirRecursively(dirPath) {
@@ -51,39 +51,66 @@ const fs: FsType = {
       await fsp.rmdir(dirPath);
     }
   },
-
+  merge,
   ...fsp
 };
+
+
+function checkNotSupportedPath(aPath) {
+  if (path.isAbsolute(aPath)) {
+    throw new NotSupportedError(`wip  ${aPath}  absolute path is not supported`);
+  }
+  if (/\.\./.test(path.normalize(aPath))) {
+    throw new NotSupportedError(`wip  ${aPath}  path that use .. is not supported`);
+  }
+}
 
 type TransactionConfigType = {
   basePath: ?string;
   fsFunctions: FsType;
+  mergeResolution?: 'overwrite' | 'ask' | 'skip';
 }
 class Transaction {
-  constructor({ basePath, fsFunctions }: TransactionConfigType) {
+  constructor({ basePath = process.cwd(), fsFunctions, mergeResolution = 'overwrite' }: TransactionConfigType) {
     this.uuid = uuid();
     this.fs = { ...fsFunctions, beginTransaction: undefined };
 
-    this.basePath = (basePath && this.fs.existsSync(basePath)) || process.cwd();
+    // 如果传入的是一个绝对路径，就直接在上面干活了
+    if (path.isAbsolute(basePath)) {
+      this.basePath = basePath;
+    // 如果传入的是正确的相对路径，就接上一个 process.cwd()
+    } else if (this.fs.existsSync(path.join(process.cwd(), basePath))) {
+      this.basePath = path.join(process.cwd(), basePath);
+    } else {
+      throw new MissingImportantFileError(path.join(process.cwd(), basePath));
+    }
+
     this.tempFolderPath = '';
     this.tempFolderCreated = false;
     this.affixes = {
       prefix: 'tempFolder',
       suffix: '.transaction-fs'
     };
+
+    this.mergeResolution = mergeResolution;
   }
 
   // 自己也要做判断：如果临时文件夹已存在就不创建了，如果想创建的文件夹已经存在就不创建了
-  async exists(newThingPath) {
-    if (await this.fs.exists(newThingPath)) {
-      throw new Error(ALREADY_EXIST, 'exists()  ', newThingPath);
+  async exists(newThingPath: string) {
+    checkNotSupportedPath(newThingPath);
+
+    if (await this.fs.exists(path.join(this.basePath, newThingPath))) {
+      throw new AlreadyExistsError(newThingPath);
+    }
+    if (!await this.fs.exists(this.basePath)) {
+      throw new MissingImportantFileError(this.basePath);
     }
     if (!this.tempFolderCreated) {
       this.tempFolderPath = await temp.mkdir(this.affixes);
       this.tempFolderCreated = true;
     }
     if (this.tempFolderCreated && !await this.fs.exists(this.tempFolderPath)) {
-      throw new Error(MISSING_IMPORTANT_FILE, 'mkdir()  ', this.tempFolderPath);
+      throw new MissingImportantFileError(this.tempFolderPath);
     }
   }
 
@@ -94,14 +121,29 @@ class Transaction {
   async mkdir(dirPath, mode) {
     try {
       await this.exists(dirPath);
-      const newPath = path.join(this.basePath, path.dirname(dirPath));
+
+      const newPath = path.join(this.tempFolderPath, path.dirname(dirPath));
       this.fs.mkdirRecursively(newPath, mode);
     } catch (error) {
-      throw error;
+      this.rollback(error);
     }
   }
 
+  // 尝试将临时文件夹里的内容合并到工作目录下，一言不合就回滚
+  async commit() {
+    try {
+      console.log(this.tempFolderPath, this.basePath, this.mergeResolution)
+      this.fs.merge(this.tempFolderPath, this.basePath, this.mergeResolution);
+    } catch (error) {
+      this.rollback(error);
+    }
+  }
 
+  // 直接把临时文件夹删了了事
+  async rollback(error) {
+    this.fs.rmdirRecursively(this.tempFolderPath);
+    throw error;
+  }
 
 
   // static removeT(dirPath) {

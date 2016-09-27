@@ -26,7 +26,9 @@
   "homepage": "https://github.com/linonetwo/fs-transaction#readme",
   "dependencies": {
     "bluebird": "^3.4.6",
+    "common-errors": "^1.0.0",
     "fs-promise": "^0.5.0",
+    "merge-dirs": "^0.2.1",
     "node-uuid": "^1.4.7",
     "promised-temp": "^0.1.0"
   },

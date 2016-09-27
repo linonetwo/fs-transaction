@@ -1,3 +1,7 @@
+## Merging  
+Merging will use overwrite resolution by default, I think it's OK since most C/U operation will check if thing you want to create already exists.  
+If starting a C/U with that thing not existing, but at merge time it just exist... There must be some other operation faster than it create that thing, which is annoying, we are to overwrite it :D  
+
 ## EdgeCases
 
 ### Making Temporary Dir  
