@@ -12,11 +12,11 @@ import fs from 'fs-transaction';
 ## Current usage
 ```javascript
 // in an async function
-const tx = fs.beginTransaction();
+const tx = fs.beginTransaction({ basePath: './__test__/testFile' });
 
 await tx.mkdir('aDir');
 
-const writeStream = await tx.createWriteStream('aDir/aFile.md');
+const writeStream = tx.createWriteStream('aDir/aFile.md');
 
 // fs-transaction is lighter than git, thus offering the document level rollback but not the line level rollback.
 // so it is sync inside a writeStream procedure
@@ -25,10 +25,11 @@ writeStream.end();
 
 await tx.commit();
 ```
-or using promise
+or using promise  
+
 ```javascript
 // in an es6+ function with bluebird Promise
-const tx = fs.beginTransaction();
+const tx = fs.beginTransaction({ basePath: './__test__/testFile' });
 
 return Promise.try(() =>
   tx.mkdirT('aDir')
@@ -50,35 +51,42 @@ We have following configs:
 - base: base path for all operations, if not provided, ```process.cwd()``` will be used  
 (absolute path and ```../``` is not supported currently, since they may not be the common usage, 
 and supporting them may cause performance problem —— 
-this package is mainly for metadata server programs that can't stand this.)
+this package is mainly for metadata server programs that can't stand this.)  
+
 ```javascript
 // in an async function
-const tx = fs.beginTransaction({ base: '../fileStorage/myfiles/' });
+const tx = fs.beginTransaction({ basePath: './__test__/testFile' });
 ```
 
+## Functions  
+- mkdirs ( making nested folder, missing ones will be created )
 
 
 ## Don't need a transaction?
 This package wraps the fs-promise, so you can just regard it as an fs-promise instance, when not calling ```beginTransaction()```.  
+  
 ```javascript
 // in an async function
 await fs.mkdir('aDir');
 
-const writeStream = await fs.createWriteStream('aDir/aFile.md');
+const writeStream = fs.createWriteStream('aDir/aFile.md');
 
 writeStream.write('# markdown');
-writeStream.end();
+writeStream.end();  
+
 ```
+  
 Well, almost the same. The only difference is the missing of ```commit()``` and the disappearance of it's atomic characteristic.   
 
 ## Decorator?
-I will experimentally move transaction feature into a decorator. Making it writes just like writing 「fs-promise」, but I'm not sure whether this is necessary.
+I will experimentally move transaction feature into a decorator. Making it writes just like writing 「fs-promise」, but I'm not sure whether this is necessary.  
+  
 ```javascript
-@transactional({ base: '../fileStorage/myfiles/' })
+@transactional({ basePath: './__test__/testFile' })
 async function atomicFileSystemOperation() {
   await fs.mkdir('aDir');
   
-  const writeStream = await fs.createWriteStream('aDir/aFile.md');
+  const writeStream = fs.createWriteStream('aDir/aFile.md');
 
   writeStream.write('# markdown');
   writeStream.end();
@@ -86,8 +94,63 @@ async function atomicFileSystemOperation() {
 ```
   
 ## Building block
-This package is mainly built on [fs-promise](https://github.com/kevinbeaty/fs-promise), who includes a full feature fs module.  
-merge() function is havely inspired by [merge-dirs](https://github.com/binocarlos/merge-dirs).
+This package is mainly built on [fs-promise](https://github.com/kevinbeaty/fs-promise), who includes a full feature fs module, promisifing following functions:  
+### fsExtra  
+- copy
+- emptyDir
+- ensureFile
+- ensureDir
+- ensureLink
+- ensureSymlink
+- mkdirs
+- move
+- outputFile
+- outputJson
+- readJson
+- remove
+- writeJson
+- createFile
+- createLink
+- createSymlink
+- emptydir
+- mkdirp
+- readJSON
+- outputJSON
+- writeJSON
+- walk
+### mz/fs
+- rename
+- ftruncate
+- chown
+- fchown
+- lchown
+- chmod
+- fchmod
+- stat
+- lstat
+- fstat
+- link
+- symlink
+- readlink
+- realpath
+- unlink
+- rmdir
+- mkdir
+- readdir
+- close
+- open
+- utimes
+- futimes
+- fsync
+- write
+- read
+- readFile
+- writeFile
+- appendFile
+- access
+- exists
+merge() function is havely inspired by [merge-dirs](https://github.com/binocarlos/merge-dirs).  
+- mergeDir
   
 ## Who is using this (as an Example)  
 [ShanghaiTechSemanticServer](https://github.com/Learnone/ShanghaiTechAPPServer) : using it to sync files together with metadata on the database.
