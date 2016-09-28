@@ -3,7 +3,6 @@ import fsp from 'fs-promise';
 import { v4 as uuid } from 'node-uuid';
 import path from 'path';
 import temp from 'promised-temp';
-import merge from 'merge-dirs';
 
 import sequencePromise from './sequencePromise';
 
@@ -51,7 +50,34 @@ const fs: FsType = {
       await fsp.rmdir(dirPath);
     }
   },
-  merge,
+  async mergeDir(src, dest, conflictResolver = 'overwrite') {
+    const files = await fs.readdir(src);
+
+    for (const name of files) {
+      const srcName = path.join(src, name);
+      const destName = path.join(dest, name);
+      const stats = await fs.lstat(srcName);
+
+      if (stats.isDirectory()) {
+        await fs.mergeDirs(srcName, destName, conflictResolver);
+      } else if (!await fs.exists(destName)) {
+        // 目的地没这个文件就直接复制文件
+        await fs.mkdir(path.dirname(srcName), 0x1ed, true);
+        await fs.writeFile(srcName, await fs.readFile(destName));
+      } else {
+        // 目的地有这个文件就要看看你希望怎么解决冲突
+        switch (conflictResolver) {
+          case 'overwrite':
+            await fs.mkdir(path.dirname(srcName), 0x1ed, true);
+            await fs.writeFile(srcName, await fs.readFile(destName));
+            break;
+          case 'skip':
+          default:
+            console.log(`${destName} exists, skipping...`);
+        }
+      }
+    }
+  },
   ...fsp
 };
 
@@ -132,7 +158,7 @@ class Transaction {
   // 尝试将临时文件夹里的内容合并到工作目录下，一言不合就回滚
   async commit() {
     try {
-      console.log(this.tempFolderPath, this.basePath, this.mergeResolution)
+      console.log(this.tempFolderPath, this.basePath, this.mergeResolution);
       this.fs.merge(this.tempFolderPath, this.basePath, this.mergeResolution);
     } catch (error) {
       this.rollback(error);
