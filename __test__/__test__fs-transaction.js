@@ -109,4 +109,11 @@ describe('frequently used fs-transaction operations', () => {
     expect(dirSeriesTwo).to.be.a.path();
   });
 
+  it('mkdir then rollback, there exists nothing', async () => {
+    const dirSeries = path.join(basePath, 'a/b/c/');
+    await tx.mkdirs('a/b/c/');
+    await tx.rollback();
+    expect(dirSeries).to.not.be.a.path();
+  });
+
 });

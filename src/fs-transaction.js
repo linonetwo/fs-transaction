@@ -98,7 +98,7 @@ class Transaction {
   }
 
   // 自己也要做判断：如果临时文件夹已存在就不创建了，如果想创建的文件夹已经存在就不创建了
-  async exists(newThingPath: string) {
+  async _exists(newThingPath: string) {
     checkNotSupportedPath(newThingPath);
 
     if (await this.fs.exists(path.join(this.basePath, newThingPath))) {
@@ -123,7 +123,7 @@ class Transaction {
   async mkdirs(dirPath) {
     try {
       // 确定环境可用，而且 dirPath 是一个正确的不存在的相对路径
-      await this.exists(dirPath);
+      await this._exists(dirPath);
 
       const newPath = path.join(this.tempFolderPath, dirPath);
       await this.fs.mkdirs(newPath);
@@ -145,26 +145,10 @@ class Transaction {
   // 直接把临时文件夹删了了事
   async rollback(error) {
     await this.fs.remove(this.tempFolderPath);
-    throw error;
+    if (error) {
+      throw error;
+    }
   }
-
-
-  // static removeT(dirPath) {
-  //   const replacedDirPath = replaceTempPath(dirPath, fs.fileNameMap);
-
-  //   return fsp.exists(replacedDirPath).then((existsDirPath) => {
-  //     if (!existsDirPath) {
-  //       return Promise.reject(`removeT Error: ${replacedDirPath} dont really exists`);
-  //     }
-  //     const newPath = path.join(path.dirname(replacedDirPath), `~removeT~${path.basename(replacedDirPath)}`);// 把文件夹变成加 ~ 文件或文件夹子，表示这只是暂时的，可能会被回滚
-  //     fs.fileNameMap[replacedDirPath] = newPath;
-
-  //     fs.rollbackStack.unshift(() => { if (fsp.existsSync(newPath)) { return fsp.rename(newPath, replacedDirPath); } }); // 入栈一个回滚操作：把临时文件或文件夹改回原名
-  //     fs.commitStack.unshift(() => { if (fsp.existsSync(newPath)) { return fsp.remove(newPath); } }); // 入栈一个提交操作：把文件或文件夹真的删掉
-
-  //     return fsp.rename(replacedDirPath, newPath); // 这是个 Promise
-  //   });
-  // }
 
 
   // createWriteStreamT(filePath, options) { // https://nodejs.org/api/fs.html#fs_fs_createwritestream_path_options 原生不支持链式调用
@@ -185,24 +169,5 @@ class Transaction {
 
 }
 
-
-
-
-// fs.mkdirRecursiveT('aaa\\bbb\\ccc')
-// .then( () => fs.commit(() => console.log('commit', new Date().getTime())) )
-// .catch(err => fs.rollback( () => console.log('rollback', err, new Date().getTime())));
-
-// fs.mkdirT('aaa').then(()=>console.log('mkdirT aaa', new Date().getTime()))
-// .then( () => fs.mkdirT('aaa\\bbb').then(()=>console.log('mkdirT aaa\\bbb', new Date().getTime())) )
-// .then( () => fs.mkdirT('aaa\\bbb\\ccc').then(()=>console.log('mkdirT aaa\\bbb\\ccc', new Date().getTime())) )
-// .then(
-//   () => fs.createWriteStreamT('aaa\\bbb\\aaa.xml')
-//   .then(writeStream => { writeStream.write('asdffff'); writeStream.end() })
-//   .then(()=>console.log('createWriteStreamT ./aaa/bbb/aaa.xml', new Date().getTime()))
-// )
-// .then( () => fs.commit((aaa) => console.log('commit', new Date().getTime())) )
-// .catch(err => fs.rollback( () => console.log('rollback', err, new Date().getTime())));
-
-// fs.createWriteStreamT('aaa.xml').then(writeStream => { writeStream.write('asdffff'); writeStream.end() }).then(() => fs.commit()).catch(err => console.log(err));
 
 export default fs;
