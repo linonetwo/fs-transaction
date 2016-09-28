@@ -10,7 +10,7 @@ import { MissingImportantFileError, AlreadyExistsError, NotSupportedError } from
 
 type FsType = {
   beginTransaction: (config: TransactionConfigType) => Transaction; // eslint-disable-line
-  mkdirRecursively: (dirPath: string, dirName: string) => Promise<>;
+  mergeDir: (src: string, dest: string, conflictResolver: 'overwrite' | 'skip') => Promise<>;
   // ...fsp
 }
 
@@ -19,61 +19,37 @@ const fs: FsType = {
 
   beginTransaction: (...config) => new Transaction(Object.assign({}, ...config, { fsFunctions: fs })),
 
-  async mkdirRecursively(dirPath, dirName) {
-    if (typeof dirName === 'undefined') { // 判断是否是第一次调用
-      if (await fsp.exists(dirPath)) {
-        return Promise.resolve();
-      }
-      return fs.mkdirRecursively(dirPath, path.dirname(dirPath));
-    }
-    if (dirName !== path.dirname(dirPath)) { // 判断第二个参数是否正常，避免调用时传入错误参数
-      return fs.mkdirRecursively(dirPath);
-    }
-    if (await fsp.exists(dirName)) { // 递归收尾，创建最深处的文件夹
-      return fsp.mkdir(dirPath);
-    }
-    await fs.mkdirRecursively(dirName, path.dirname(dirName));
-    return fsp.mkdir(dirPath);
-  },
-
-  async rmdirRecursively(dirPath) {
-    if (await fsp.exists(dirPath)) {
-      const fileList = await fsp.readdir(dirPath);
-      for (const aFile of fileList) {
-        const curPath = dirPath + '/' + aFile;
-        if ((await fsp.stat(curPath)).isDirectory()) { // recurse
-          await fs.rmdirRecursively(curPath);
-        } else { // delete file
-          await fsp.unlink(curPath);
-        }
-      }
-      await fsp.rmdir(dirPath);
-    }
-  },
-  async mergeDir(src, dest, conflictResolver = 'overwrite') {
-    const files = await fs.readdir(src);
-
+  /* eslint no-continue: 0 */
+  async mergeDir(srcPath, destPath, conflictResolver = 'overwrite') {
+    const files = await fsp.readdir(srcPath);
     for (const name of files) {
-      const srcName = path.join(src, name);
-      const destName = path.join(dest, name);
-      const stats = await fs.lstat(srcName);
+      const srcName = path.join(srcPath, name);
+      const destName = path.join(destPath, name);
+      const srcStats = await fsp.lstat(srcName);
 
-      if (stats.isDirectory()) {
-        await fs.mergeDirs(srcName, destName, conflictResolver);
-      } else if (!await fs.exists(destName)) {
+      if (srcStats.isDirectory()) {
+        // 对于源头的每一个文件夹，递归创建出文件夹树
+        if (!await fsp.exists(destName)) {
+          await fsp.mkdir(destName);
+        }
+        await fs.mergeDir(srcName, destName, conflictResolver);
+        continue;
+      }
+
+      // 递归到了叶子节点后，开始处理文件
+      if (!await fsp.exists(destName)) {
         // 目的地没这个文件就直接复制文件
-        await fs.mkdir(path.dirname(srcName), 0x1ed, true);
-        await fs.writeFile(srcName, await fs.readFile(destName));
+        await fsp.writeFile(srcName, await fsp.readFile(destName));
       } else {
         // 目的地有这个文件就要看看你希望怎么解决冲突
         switch (conflictResolver) {
           case 'overwrite':
-            await fs.mkdir(path.dirname(srcName), 0x1ed, true);
-            await fs.writeFile(srcName, await fs.readFile(destName));
+            await fsp.mkdir(path.dirname(srcName));
+            await fsp.writeFile(srcName, await fsp.readFile(destName));
             break;
           case 'skip':
           default:
-            console.log(`${destName} exists, skipping...`);
+            break;
         }
       }
     }
@@ -144,30 +120,31 @@ class Transaction {
   // 创建一个临时文件夹，在里面创建想创建的文件夹：
   // 先判断
   // 然后对于 a/b/c ，递归地创建 temp/a/b/c
-  async mkdir(dirPath, mode) {
+  async mkdirs(dirPath) {
     try {
+      // 确定环境可用，而且 dirPath 是一个正确的不存在的相对路径
       await this.exists(dirPath);
 
-      const newPath = path.join(this.tempFolderPath, path.dirname(dirPath));
-      this.fs.mkdirRecursively(newPath, mode);
+      const newPath = path.join(this.tempFolderPath, dirPath);
+      await this.fs.mkdirs(newPath);
     } catch (error) {
-      this.rollback(error);
+      await this.rollback(error);
     }
   }
 
   // 尝试将临时文件夹里的内容合并到工作目录下，一言不合就回滚
   async commit() {
     try {
-      console.log(this.tempFolderPath, this.basePath, this.mergeResolution);
-      this.fs.merge(this.tempFolderPath, this.basePath, this.mergeResolution);
+      // console.log(this.tempFolderPath, this.basePath, this.mergeResolution);
+      await this.fs.mergeDir(this.tempFolderPath, this.basePath, this.mergeResolution);
     } catch (error) {
-      this.rollback(error);
+      await this.rollback(error);
     }
   }
 
   // 直接把临时文件夹删了了事
   async rollback(error) {
-    this.fs.rmdirRecursively(this.tempFolderPath);
+    await this.fs.remove(this.tempFolderPath);
     throw error;
   }
 

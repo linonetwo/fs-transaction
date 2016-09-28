@@ -24,7 +24,7 @@ describe('basic fs characteristic', () => {
   });
 
   afterEach(async () => {
-    await fs.rmdirRecursively(basePath);
+    await fs.remove(basePath);
   });
 
   it('new a tx, it have its v4uuid', () => {
@@ -40,37 +40,37 @@ describe('basic fs characteristic', () => {
   });
 });
 
-describe('non-transactional helper functions', () => {
+describe('non-transactional frequently used helper functions', () => {
   const basePath = './__test__/testFile';
 
   beforeEach(() => {
-    fs.mkdirSync(basePath);
+    return fs.mkdirs(basePath);
   });
 
-  afterEach(async () => {
-    await fs.rmdirRecursively(basePath);
+  afterEach(() => {
+    return fs.remove(basePath);
   });
 
-  it('rmdirRecursively , remove a serious of nested folder and file inside', async () => {
+  it('remove , remove a serious of nested folder and file inside', async () => {
     const dirSeries = path.join(basePath + '/a/b/c/');
 
     // nested folder
-    await fs.mkdirRecursively(dirSeries);
+    await fs.mkdirs(dirSeries);
 
     // with file
-    const writeStream = await fs.createWriteStream(path.join(dirSeries + 'aFile.md'));
+    const writeStream = fs.createWriteStream(path.join(dirSeries, 'aFile.md'));
     writeStream.write('# markdown');
     writeStream.end();
 
     // delete them
-    await fs.rmdirRecursively(basePath);
+    await fs.remove(basePath);
 
     expect(dirSeries).to.not.be.a.path();
   });
 
-  it('mkdirRecursively , there being a serious of folder with correct name', async () => {
-    const dirSeries = path.join(basePath + '/a/b/c/');
-    await fs.mkdirRecursively(dirSeries);
+  it('mkdirs , there being a serious of folder with correct name', async () => {
+    const dirSeries = path.join(basePath, '/a/b/c/');
+    await fs.mkdirs(dirSeries);
     expect(dirSeries).to.be.a.path();
   });
 });
@@ -88,14 +88,25 @@ describe('frequently used fs-transaction operations', () => {
   });
 
   afterEach(async () => {
-    await fs.rmdirRecursively(basePath);
+    await fs.remove(basePath);
   });
 
 
   it('mkdir then commit, there being a folder with correct name', async () => {
-    const dirSeries = path.join(basePath + 'a/b/c/');
-    await tx.mkdir('a/b/c/');
+    const dirSeries = path.join(basePath, 'a/b/c/');
+    await tx.mkdirs('a/b/c/');
     await tx.commit();
     expect(dirSeries).to.be.a.path();
   });
+
+  it('mk different dir two times then commit, there being folders with correct name', async () => {
+    const dirSeriesOne = path.join(basePath, 'a/b/c/');
+    const dirSeriesTwo = path.join(basePath, 'a/d/d/');
+    await tx.mkdirs('a/b/c/');
+    await tx.mkdirs('a/d/d/');
+    await tx.commit();
+    expect(dirSeriesOne).to.be.a.path();
+    expect(dirSeriesTwo).to.be.a.path();
+  });
+
 });
