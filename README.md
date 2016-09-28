@@ -19,7 +19,7 @@ await tx.mkdir('aDir');
 const writeStream = tx.createWriteStream('aDir/aFile.md');
 
 // fs-transaction is lighter than git, thus offering the document level rollback but not the line level rollback.
-// so it is sync inside a writeStream procedure
+// so every writeStream is in overwrite mode. If you have any question about this, please issue it.
 writeStream.write('# markdown');
 writeStream.end();
 
@@ -32,10 +32,10 @@ or using promise
 const tx = fs.beginTransaction({ basePath: './__test__/testFile' });
 
 return Promise.try(() =>
-  tx.mkdirT('aDir')
+  tx.mkdir('aDir')
 )
 .then(() =>
-  tx.createWriteStreamT('aDir/aFile.md')
+  tx.createWriteStream('aDir/aFile.md')
 )
 .then(writeStream => {
   writeStream.write('# markdown');
@@ -118,6 +118,7 @@ This package is mainly built on [fs-promise](https://github.com/kevinbeaty/fs-pr
 - outputJSON
 - writeJSON
 - walk
+  
 ### mz/fs
 - rename
 - ftruncate
@@ -149,6 +150,7 @@ This package is mainly built on [fs-promise](https://github.com/kevinbeaty/fs-pr
 - appendFile
 - access
 - exists
+  
 merge() function is havely inspired by [merge-dirs](https://github.com/binocarlos/merge-dirs).  
 - mergeDir
   
