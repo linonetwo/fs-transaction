@@ -20,12 +20,9 @@ const tx = fs.beginTransaction({ basePath: './__test__/testFile' });
 
 await tx.mkdir('aDir');
 
-const writeStream = tx.createWriteStream('aDir/aFile.md');
-
 // fs-transaction is lighter than git, thus offering the document level rollback but not the line level rollback.
-// so every writeStream is in overwrite mode. If you have any question about this, please issue it.
-writeStream.write('# markdown');
-writeStream.end();
+// so by default writeFile is in overwrite mode. If you have any question about this, please issue it.
+await tx.writeFile('aDir/aFile.md', '# markdown');
 
 await tx.commit();
 ```
@@ -40,12 +37,8 @@ return Promise.try(() =>
   tx.mkdir('aDir')
 )
 .then(() =>
-  tx.createWriteStream('aDir/aFile.md')
+  tx.writeFile('aDir/aFile.md', '# markdown')
 )
-.then(writeStream => {
-  writeStream.write('# markdown');
-  writeStream.end();
-})
 .then(() =>
   tx.commit()
 )
@@ -56,17 +49,19 @@ return Promise.try(() =>
 We have following configs:  
 
 - base: base path for all operations, if not provided, ```process.cwd()``` will be used
+- mergeResolution: 'overwrite' or 'skip', by default 'overwrite' so that we can use writeFile to update a file
 
 (absolute path and ```../``` is not supported currently, since they may not be the common usage, and supporting them may cause performance problem —— this package is mainly for metadata server programs that can't stand this.)  
 
 ```javascript
 // in an async function
-const tx = fs.beginTransaction({ basePath: './__test__/testFile' });
+const tx = fs.beginTransaction({ basePath: './__test__/testFile', mergeResolution: 'overwrite' });
 ```
 
 ## Functions
 
 - mkdirs ( making nested folder, missing ones will be created )
+- writeFile ( write or overwrite file )
 
 ## If you don't need a transaction
 
@@ -77,10 +72,7 @@ This package wraps the fs-promise, so you can just regard it as an fs-promise in
 // in an async function
 await fs.mkdir('aDir');
 
-const writeStream = fs.createWriteStream('aDir/aFile.md');
-
-writeStream.write('# markdown');
-writeStream.end();  
+await fs.writeFile('aDir/aFile.md', '# markdown');
 
 ```
 
@@ -96,10 +88,7 @@ I will experimentally move transaction feature into a decorator. Making it write
 async function atomicFileSystemOperation() {
   await fs.mkdir('aDir');
 
-  const writeStream = fs.createWriteStream('aDir/aFile.md');
-
-  writeStream.write('# markdown');
-  writeStream.end();
+  await writeFile('aDir/aFile.md', '# markdown');
 }
 ```
 

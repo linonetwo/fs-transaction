@@ -21,6 +21,7 @@ const fs: FsType = {
 
   /* eslint no-continue: 0 */
   async mergeDir(srcPath, destPath, conflictResolver = 'overwrite') {
+    // 不直接使用 fs-extra 中功能相似的 copy 是为了保持灵活性，我不是很确定 merge 是否与 copy 有不同之处，所以目前只在文件的粒度上使用 copy
     const files = await fsp.readdir(srcPath);
     for (const name of files) {
       const srcName = path.join(srcPath, name);
@@ -39,7 +40,7 @@ const fs: FsType = {
       // 递归到了叶子节点后，开始处理文件
       if (!await fsp.exists(destName)) {
         // 目的地没这个文件就直接复制文件
-        await fsp.writeFile(srcName, await fsp.readFile(destName));
+        await fsp.copy(srcName, destName);
       } else {
         // 目的地有这个文件就要看看你希望怎么解决冲突
         switch (conflictResolver) {
@@ -70,7 +71,7 @@ function checkNotSupportedPath(aPath) {
 type TransactionConfigType = {
   basePath: ?string;
   fsFunctions: FsType;
-  mergeResolution?: 'overwrite' | 'ask' | 'skip';
+  mergeResolution?: 'overwrite' | 'skip';
 }
 class Transaction {
   constructor({ basePath = process.cwd(), fsFunctions, mergeResolution = 'overwrite' }: TransactionConfigType) {
@@ -98,7 +99,7 @@ class Transaction {
   }
 
   // 自己也要做判断：如果临时文件夹已存在就不创建了，如果想创建的文件夹已经存在就不创建了
-  async _exists(newThingPath: string) {
+  async _check(newThingPath: string) {
     checkNotSupportedPath(newThingPath);
 
     if (await this.fs.exists(path.join(this.basePath, newThingPath))) {
@@ -123,10 +124,21 @@ class Transaction {
   async mkdirs(dirPath) {
     try {
       // 确定环境可用，而且 dirPath 是一个正确的不存在的相对路径
-      await this._exists(dirPath);
+      await this._check(dirPath);
 
       const newPath = path.join(this.tempFolderPath, dirPath);
       await this.fs.mkdirs(newPath);
+    } catch (error) {
+      await this.rollback(error);
+    }
+  }
+
+  async writeFile(fileName, content) {
+    try {
+      await this._check(fileName);
+
+      const newPath = path.join(this.tempFolderPath, fileName);
+      await this.fs.writeFile(newPath, content);
     } catch (error) {
       await this.rollback(error);
     }

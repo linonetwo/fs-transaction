@@ -1,5 +1,6 @@
 /* eslint-env node, mocha */
 /* eslint arrow-body-style: 0 */
+/* eslint-disable no-unused-expressions */
 import Promise from 'bluebird';
 import chai from 'chai';
 import chaiFs from 'chai-fs';
@@ -94,6 +95,7 @@ describe('frequently used fs-transaction operations', () => {
 
   it('mkdir then commit, there being a folder with correct name', async () => {
     const dirSeries = path.join(basePath, 'a/b/c/');
+
     await tx.mkdirs('a/b/c/');
     await tx.commit();
     expect(dirSeries).to.be.a.path();
@@ -102,6 +104,7 @@ describe('frequently used fs-transaction operations', () => {
   it('mk different dir two times then commit, there being folders with correct name', async () => {
     const dirSeriesOne = path.join(basePath, 'a/b/c/');
     const dirSeriesTwo = path.join(basePath, 'a/d/d/');
+
     await tx.mkdirs('a/b/c/');
     await tx.mkdirs('a/d/d/');
     await tx.commit();
@@ -111,9 +114,32 @@ describe('frequently used fs-transaction operations', () => {
 
   it('mkdir then rollback, there exists nothing', async () => {
     const dirSeries = path.join(basePath, 'a/b/c/');
+
     await tx.mkdirs('a/b/c/');
     await tx.rollback();
     expect(dirSeries).to.not.be.a.path();
   });
 
+
+  it('writeFile then commit, correct file created', async () => {
+    const fileName = 'aFile.md';
+    const filePath = path.join(basePath, fileName);
+    const fileContent = '# This is a title\n\nAnd this is a content';
+
+    await tx.writeFile(fileName, fileContent);
+
+    await tx.commit();
+    expect(filePath).to.be.a.file();
+  });
+
+  it('writeFile then rollback, there exists nothing', async () => {
+    const fileName = 'aFile.md';
+    const filePath = path.join(basePath, fileName);
+    const fileContent = '# This is a title\n\nAnd this is a content';
+
+    await tx.writeFile(fileName, fileContent);
+
+    await tx.rollback();
+    expect(basePath).to.be.a.directory().and.empty;
+  });
 });

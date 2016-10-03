@@ -1,6 +1,6 @@
 {
   "name": "fs-transaction",
-  "version": "1.0.5",
+  "version": "1.0.7",
   "description": "fs with rollback and commit, suitable for maintaining filesystem sync with database.",
   "main": "build/fs-transaction.js",
   "scripts": {
