@@ -55,20 +55,25 @@ We have following configs:
 
 ```javascript
 // in an async function
-const tx = fs.beginTransaction({ basePath: './__test__/testFile', mergeResolution: 'overwrite' });
+const tx = fs.beginTransaction({
+  basePath: './__test__/testFile',
+  mergeResolution: 'overwrite'
+});
 ```
 
-## Functions
+## Supported Functions
+
+Not every fs function needs transaction, I currently support what I need for my project. If you have any special need don't hesitate to tell me :P  
 
 - mkdirs ( making nested folder, missing ones will be created )
 - writeFile ( write or overwrite file )
+- copy ( WIP )
 
 ## If you don't need a transaction
 
 This package wraps the fs-promise, so you can just regard it as an fs-promise instance, when not calling ```beginTransaction()```.  
 
 ```javascript
-
 // in an async function
 await fs.mkdir('aDir');
 
@@ -77,20 +82,6 @@ await fs.writeFile('aDir/aFile.md', '# markdown');
 ```
 
 Well, almost the same. The only difference is the missing of ```commit()``` and the disappearance of it's atomic characteristic.  
-
-## If you love decorator
-
-I will experimentally move transaction feature into a decorator. Making it writes just like writing 「fs-promise」, but I'm not sure whether this is necessary.  
-
-```javascript
-
-@transactional({ basePath: './__test__/testFile' })
-async function atomicFileSystemOperation() {
-  await fs.mkdir('aDir');
-
-  await writeFile('aDir/aFile.md', '# markdown');
-}
-```
 
 ## Building block
 
@@ -154,10 +145,24 @@ This package is mainly built on [fs-promise](https://github.com/kevinbeaty/fs-pr
 - access
 - exists
   
-merge() function is havely inspired by [merge-dirs](https://github.com/binocarlos/merge-dirs).  
+mergeDir() function is havely inspired by [merge-dirs](https://github.com/binocarlos/merge-dirs).  
 
 - mergeDir
   
+## If you love decorator
+
+I will experimentally move transaction feature into a decorator. Making it writes just like writing 「fs-promise」, but I'm not sure whether this is necessary.  
+
+```javascript
+
+@transactional({ basePath: './__test__/testFile' })
+async function atomicFileSystemOperation() {
+  await fs.mkdir('aDir');
+
+  await writeFile('aDir/aFile.md', '# markdown');
+}
+```
+
 ## Who is using this (as an Example)
 
 [ShanghaiTechSemanticServer](https://github.com/Learnone/ShanghaiTechAPPServer) : using it to sync files together with metadata on the database.
