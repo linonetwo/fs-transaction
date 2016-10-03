@@ -49,7 +49,7 @@ return Promise.try(() =>
 We have following configs:  
 
 - base: base path for all operations, if not provided, ```process.cwd()``` will be used
-- mergeResolution: 'overwrite' or 'skip', by default 'overwrite' so that we can use writeFile to update a file
+- mergeResolution (optional): 'overwrite' or 'skip', by default 'overwrite' so that we can use writeFile to update a file
 
 (absolute path and ```../``` is not supported currently, since they may not be the common usage, and supporting them may cause performance problem —— this package is mainly for metadata server programs that can't stand this.)  
 
