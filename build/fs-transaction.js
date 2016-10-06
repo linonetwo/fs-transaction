@@ -4,183 +4,642 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 
-var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol ? "symbol" : typeof obj; };
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; /* eslint no-use-before-define: ["error", { "classes": false }]*/
+
 
 var _fsPromise = require('fs-promise');
 
-var fsp = _interopRequireWildcard(_fsPromise);
+var _fsPromise2 = _interopRequireDefault(_fsPromise);
+
+var _nodeUuid = require('node-uuid');
+
+var _path = require('path');
+
+var _path2 = _interopRequireDefault(_path);
+
+var _promisedTemp = require('promised-temp');
+
+var _promisedTemp2 = _interopRequireDefault(_promisedTemp);
 
 var _sequencePromise = require('./sequencePromise');
 
 var _sequencePromise2 = _interopRequireDefault(_sequencePromise);
 
-var _path = require('path');
-
-var path = _interopRequireWildcard(_path);
+var _errorTypes = require('./errorTypes');
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
-// utils
-// 用来换掉路径中还没 commit 的临时目录名
-var replaceTempPath = function replaceTempPath(incomingPath, replaceSet) {
-  return incomingPath.split(path.sep).reduce(function (previousValue, currentValue) {
-    return (// (previousValue, currentValue, currentIndex, array) =>
-      path.join(replaceSet[previousValue] !== undefined ? replaceSet[previousValue] : previousValue, currentValue)
-    );
-  });
-};
-// console.log( replaceTempPath('a\\b\\c\\aaa.txt', { 'a\\b': 'a\\~b', 'a\\~b\\c': 'a\\~b\\~c' }) );
+function _asyncToGenerator(fn) { return function () { var gen = fn.apply(this, arguments); return new Promise(function (resolve, reject) { function step(key, arg) { try { var info = gen[key](arg); var value = info.value; } catch (error) { reject(error); return; } if (info.done) { resolve(value); } else { return Promise.resolve(value).then(function (value) { return step("next", value); }, function (err) { return step("throw", err); }); } } return step("next"); }); }; }
 
-
-// 为了方便大量涉及文件操作的 API 的撰写，我决定将部分会涉及到的文件操作事务化，也就是让非幂等的操作都变成 mkdirT() 这样，T 的意思是 Transaction。
-// 这些操作只有当调用 commitFs() 时才会对文件系统产生永久性的影响，而当调用 rollbackFs() 后都会被撤销
-// 然而情况涉及到多个操作并发，以及读操作想要读事务性写操作的结果做条件判断，创了又删删了又创中间还往里移动了东西，需要从 req 创建输入流 等等坑，我觉得我只能完成一些常见情况。
-// 想想看，我可能需要删掉某个文档：这就先改个名，回滚是改回名，提交是真删掉 ;创建一个文件夹：创就创了呗，回滚是删掉，提交不做啥（如果遵循栈的话就很自然） ;创建文件类似
-// 写入文件：就先复制一个成别的名字，回滚是删掉它，提交是覆盖原文件
-
-// 注意两个调用之间得用 then 连接，不然可能会竞争 commitStack
-var fs = _extends({
-  commitStack: [],
-  rollbackStack: [],
-  fileNameMap: {}, // 用于保存文件名和临时文件名之间的映射，以后对于所有输入的路径，都看看有没有能用这里面的路径替换掉的
-
-  commit: function commit(callbackWhenDone) {
-    return (0, _sequencePromise2.default)(fs.commitStack).then(function (result) {
-      fs.rollbackStack = fs.commitStack = [];
-      fs.fileNameMap = {};
-      return Promise.resolve(typeof callbackWhenDone === 'function' ? callbackWhenDone(result) : result);
-    });
-  },
-
-  rollback: function rollback(callbackWhenDone) {
-    return (0, _sequencePromise2.default)(fs.rollbackStack).then(function (result) {
-      fs.rollbackStack = fs.commitStack = [];
-      fs.fileNameMap = {};
-      return Promise.resolve(typeof callbackWhenDone === 'function' ? callbackWhenDone(result) : result);
-    });
-  },
-
-  addToCommit: function addToCommit(someFunctionReturnsPromise) {
-    return typeof someFunctionReturnsPromise === 'function' ? Promise.resolve(fs.commitStack.unshift(someFunctionReturnsPromise)) : Promise.reject('addToCommit Error: ' + someFunctionReturnsPromise + ' is not a function');
-  },
-
-  addToRollback: function addToRollback(someFunctionReturnsPromise) {
-    return typeof someFunctionReturnsPromise === 'function' ? Promise.resolve(fs.rollbackStack.unshift(someFunctionReturnsPromise)) : Promise.reject('addToRollback Error: ' + someFunctionReturnsPromise + ' is not a function');
-  },
-
-  mkdirT: function mkdirT(dirPath, mode) {
-    var replacedDirPath = replaceTempPath(dirPath, fs.fileNameMap);
-
-    return fsp.exists(replacedDirPath).then(function (existsDirPath) {
-      if (existsDirPath) {
-        return Promise.reject('mkdirT Error: ' + replacedDirPath + ' already exists, may means you use an uuid or something for filename that has already been used');
-      }
-      var newPath = path.join(path.dirname(replacedDirPath), '~mkdirT~' + path.basename(replacedDirPath)); // 创建一个加 ~ 文件夹子，表示这只是暂时的，可能会被回滚
-      fs.fileNameMap[replacedDirPath] = newPath;
-
-      fs.rollbackStack.unshift(function () {
-        if (fsp.existsSync(newPath)) {
-          return fsp.rmdir(newPath);
-        }
-      }); // 入栈一个回滚操作：删掉临时文件
-      fs.commitStack.unshift(function () {
-        if (fsp.existsSync(newPath)) {
-          return fsp.rename(newPath, replacedDirPath);
-        }
-      }); // 入栈一个提交操作：把文件名改成正常版本 // issue:因为有时候会莫名其妙无法找到
-      // 说什么 [Error: ENOENT: no such file or directory, rename 'C:\Users\onetwo\Desktop\testDBforPoselevel\poselevel\~mkdirT~USER' -> 'C:\Users\onetwo\Desktop\testDBforPoselevel\poselevel\USER']  errno: -4058,
-      // 我至今不知道为啥
-
-      return fsp.mkdir(newPath, mode); // 这是个 Promise
-    });
-  },
-
-  mkdirRecursiveT: function mkdirRecursiveT(dirpath, dirname) {
-    if (typeof dirname === 'undefined') {
-      // 判断是否是第一次调用
-      if (fsp.existsSync(dirpath)) {
-        return Promise.resolve();
-      }
-      return fs.mkdirRecursiveT(dirpath, path.dirname(dirpath));
-    }
-    if (dirname !== path.dirname(dirpath)) {
-      // 判断第二个参数是否正常，避免调用时传入错误参数
-      return fs.mkdirRecursiveT(dirpath);
-    }
-    if (fsp.existsSync(dirname)) {
-      // 递归收尾，创建最深处的文件夹
-      return fs.mkdirT(dirpath);
-    }
-    return fs.mkdirRecursiveT(dirname, path.dirname(dirname)).then(function () {
-      return fs.mkdirT(dirpath);
-    });
-  },
-
-  removeT: function removeT(dirPath) {
-    var replacedDirPath = replaceTempPath(dirPath, fs.fileNameMap);
-
-    return fsp.exists(replacedDirPath).then(function (existsDirPath) {
-      if (!existsDirPath) {
-        return Promise.reject('removeT Error: ' + replacedDirPath + ' dont really exists');
-      }
-      var newPath = path.join(path.dirname(replacedDirPath), '~removeT~' + path.basename(replacedDirPath)); // 把文件夹变成加 ~ 文件或文件夹子，表示这只是暂时的，可能会被回滚
-      fs.fileNameMap[replacedDirPath] = newPath;
-
-      fs.rollbackStack.unshift(function () {
-        if (fsp.existsSync(newPath)) {
-          return fsp.rename(newPath, replacedDirPath);
-        }
-      }); // 入栈一个回滚操作：把临时文件或文件夹改回原名
-      fs.commitStack.unshift(function () {
-        if (fsp.existsSync(newPath)) {
-          return fsp.remove(newPath);
-        }
-      }); // 入栈一个提交操作：把文件或文件夹真的删掉
-
-      return fsp.rename(replacedDirPath, newPath); // 这是个 Promise
-    });
-  },
-
-  createWriteStreamT: function createWriteStreamT(filePath, options) {
-    // https://nodejs.org/api/fs.html#fs_fs_createwritestream_path_options 原生不支持链式调用
-    var replacedFilePath = replaceTempPath(filePath, fs.fileNameMap);
-    var newPath = path.join(path.dirname(replacedFilePath), '~createWriteStreamT~' + path.basename(replacedFilePath)); // 创建一个加 ~ 文件，表示这只是暂时的，可能会被回滚
-    fs.fileNameMap[replacedFilePath] = newPath;
-
-    fs.rollbackStack.unshift(function () {
-      if (fsp.existsSync(newPath)) {
-        return fsp.remove(newPath);
-      }
-    }); // 入栈一个回滚操作：删掉临时文件
-    fs.commitStack.unshift(function () {
-      return fsp.existsSync(replacedFilePath) ? fsp.remove(replacedFilePath).then(function () {
-        return fsp.rename(newPath, replacedFilePath);
-      }) : fsp.rename(newPath, replacedFilePath);
-    }); // 入栈一个提交操作：删掉原文件，把文件名改成正常版本
-
-    var _writeStream = fsp.createWriteStream(newPath, options); // 开始创建文件输入流
-    return Promise.resolve(_writeStream); // 用起来像 fs.createWriteStreamT('aaa.xml').then(writeStream => {writeStream.write('asdffff'); writeStream.end()}).then(() => fs.commit()).catch(err => console.log(err));
+var FsType = function () {
+  function FsType(input) {
+    return input != null && typeof input.beginTransaction === 'function' && typeof input.mergeDir === 'function';
   }
 
-}, fsp);
+  ;
+  Object.defineProperty(FsType, Symbol.hasInstance, {
+    value: function value(input) {
+      return FsType(input);
+    }
+  });
+  return FsType;
+}();
 
-// fs.mkdirRecursiveT('aaa\\bbb\\ccc')
-// .then( () => fs.commit(() => console.log('commit', new Date().getTime())) )
-// .catch(err => fs.rollback( () => console.log('rollback', err, new Date().getTime())));
+var fs = _extends({
+  // fileNameMap: {}, // 用于保存文件名和临时文件名之间的映射，以后对于所有输入的路径，都看看有没有能用这里面的路径替换掉的
 
-// fs.mkdirT('aaa').then(()=>console.log('mkdirT aaa', new Date().getTime()))
-// .then( () => fs.mkdirT('aaa\\bbb').then(()=>console.log('mkdirT aaa\\bbb', new Date().getTime())) )
-// .then( () => fs.mkdirT('aaa\\bbb\\ccc').then(()=>console.log('mkdirT aaa\\bbb\\ccc', new Date().getTime())) )
-// .then(
-//   () => fs.createWriteStreamT('aaa\\bbb\\aaa.xml')
-//   .then(writeStream => { writeStream.write('asdffff'); writeStream.end() })
-//   .then(()=>console.log('createWriteStreamT ./aaa/bbb/aaa.xml', new Date().getTime()))
-// )
-// .then( () => fs.commit((aaa) => console.log('commit', new Date().getTime())) )
-// .catch(err => fs.rollback( () => console.log('rollback', err, new Date().getTime())));
+  beginTransaction: function beginTransaction() {
+    for (var _len = arguments.length, config = Array(_len), _key = 0; _key < _len; _key++) {
+      config[_key] = arguments[_key];
+    }
 
-// fs.createWriteStreamT('aaa.xml').then(writeStream => { writeStream.write('asdffff'); writeStream.end() }).then(() => fs.commit()).catch(err => console.log(err));
+    return new Transaction(Object.assign.apply(Object, [{}].concat(config, [{ fsFunctions: fs }])));
+  },
+
+  /* eslint no-continue: 0 */
+  mergeDir: function mergeDir(srcPath, destPath) {
+    var _this = this;
+
+    var conflictResolver = arguments.length <= 2 || arguments[2] === undefined ? 'overwrite' : arguments[2];
+    return _asyncToGenerator(regeneratorRuntime.mark(function _callee() {
+      var files, _iteratorNormalCompletion, _didIteratorError, _iteratorError, _iterator, _step, name, srcName, destName, srcStats;
+
+      return regeneratorRuntime.wrap(function _callee$(_context) {
+        while (1) {
+          switch (_context.prev = _context.next) {
+            case 0:
+              _context.next = 2;
+              return _fsPromise2.default.readdir(srcPath);
+
+            case 2:
+              files = _context.sent;
+
+              if (files && (typeof files[Symbol.iterator] === 'function' || Array.isArray(files))) {
+                _context.next = 5;
+                break;
+              }
+
+              throw new TypeError('Expected files to be iterable, got ' + _inspect(files));
+
+            case 5:
+              _iteratorNormalCompletion = true;
+              _didIteratorError = false;
+              _iteratorError = undefined;
+              _context.prev = 8;
+              _iterator = files[Symbol.iterator]();
+
+            case 10:
+              if (_iteratorNormalCompletion = (_step = _iterator.next()).done) {
+                _context.next = 50;
+                break;
+              }
+
+              name = _step.value;
+              srcName = _path2.default.join(srcPath, name);
+              destName = _path2.default.join(destPath, name);
+              _context.next = 16;
+              return _fsPromise2.default.lstat(srcName);
+
+            case 16:
+              srcStats = _context.sent;
+
+              if (!srcStats.isDirectory()) {
+                _context.next = 26;
+                break;
+              }
+
+              _context.next = 20;
+              return _fsPromise2.default.exists(destName);
+
+            case 20:
+              if (_context.sent) {
+                _context.next = 23;
+                break;
+              }
+
+              _context.next = 23;
+              return _fsPromise2.default.mkdir(destName);
+
+            case 23:
+              _context.next = 25;
+              return fs.mergeDir(srcName, destName, conflictResolver);
+
+            case 25:
+              return _context.abrupt('continue', 47);
+
+            case 26:
+              _context.next = 28;
+              return _fsPromise2.default.exists(destName);
+
+            case 28:
+              if (_context.sent) {
+                _context.next = 33;
+                break;
+              }
+
+              _context.next = 31;
+              return _fsPromise2.default.copy(srcName, destName);
+
+            case 31:
+              _context.next = 47;
+              break;
+
+            case 33:
+              _context.t0 = conflictResolver;
+              _context.next = _context.t0 === 'overwrite' ? 36 : _context.t0 === 'skip' ? 46 : 46;
+              break;
+
+            case 36:
+              _context.next = 38;
+              return _fsPromise2.default.mkdir(_path2.default.dirname(srcName));
+
+            case 38:
+              _context.t1 = _fsPromise2.default;
+              _context.t2 = srcName;
+              _context.next = 42;
+              return _fsPromise2.default.readFile(destName);
+
+            case 42:
+              _context.t3 = _context.sent;
+              _context.next = 45;
+              return _context.t1.writeFile.call(_context.t1, _context.t2, _context.t3);
+
+            case 45:
+              return _context.abrupt('break', 47);
+
+            case 46:
+              return _context.abrupt('break', 47);
+
+            case 47:
+              _iteratorNormalCompletion = true;
+              _context.next = 10;
+              break;
+
+            case 50:
+              _context.next = 56;
+              break;
+
+            case 52:
+              _context.prev = 52;
+              _context.t4 = _context['catch'](8);
+              _didIteratorError = true;
+              _iteratorError = _context.t4;
+
+            case 56:
+              _context.prev = 56;
+              _context.prev = 57;
+
+              if (!_iteratorNormalCompletion && _iterator.return) {
+                _iterator.return();
+              }
+
+            case 59:
+              _context.prev = 59;
+
+              if (!_didIteratorError) {
+                _context.next = 62;
+                break;
+              }
+
+              throw _iteratorError;
+
+            case 62:
+              return _context.finish(59);
+
+            case 63:
+              return _context.finish(56);
+
+            case 64:
+            case 'end':
+              return _context.stop();
+          }
+        }
+      }, _callee, _this, [[8, 52, 56, 64], [57,, 59, 63]]);
+    }))();
+  }
+}, _fsPromise2.default);
+
+if (!FsType(fs)) {
+  throw new TypeError('Value of variable "fs" violates contract.\n\nExpected:\nFsType\n\nGot:\n' + _inspect(fs));
+}
+
+function checkNotSupportedPath(aPath) {
+  if (_path2.default.isAbsolute(aPath)) {
+    throw new _errorTypes.NotSupportedError('wip  ' + aPath + '  absolute path is not supported');
+  }
+  if (/\.\./.test(_path2.default.normalize(aPath))) {
+    throw new _errorTypes.NotSupportedError('wip  ' + aPath + '  path that use .. is not supported');
+  }
+}
+
+var TransactionConfigType = function () {
+  function TransactionConfigType(input) {
+    return input != null && (input.basePath == null || typeof input.basePath === 'string') && FsType(input.fsFunctions) && (input.mergeResolution === undefined || input.mergeResolution === 'overwrite' || input.mergeResolution === 'skip');
+  }
+
+  ;
+  Object.defineProperty(TransactionConfigType, Symbol.hasInstance, {
+    value: function value(input) {
+      return TransactionConfigType(input);
+    }
+  });
+  return TransactionConfigType;
+}();
+
+var Transaction = function () {
+  function Transaction(_ref) {
+    var _ref$basePath = _ref.basePath;
+    var basePath = _ref$basePath === undefined ? process.cwd() : _ref$basePath;
+    var fsFunctions = _ref.fsFunctions;
+    var _ref$mergeResolution = _ref.mergeResolution;
+    var mergeResolution = _ref$mergeResolution === undefined ? 'overwrite' : _ref$mergeResolution;
+
+    _classCallCheck(this, Transaction);
+
+    if (!TransactionConfigType(arguments[0])) {
+      throw new TypeError('Value of argument 0 violates contract.\n\nExpected:\nTransactionConfigType\n\nGot:\n' + _inspect(arguments[0]));
+    }
+
+    this.uuid = (0, _nodeUuid.v4)();
+    this.fs = _extends({}, fsFunctions, { beginTransaction: undefined });
+
+    // 如果传入的是一个绝对路径，就直接在上面干活了
+    if (_path2.default.isAbsolute(basePath)) {
+      this.basePath = basePath;
+      // 如果传入的是正确的相对路径，就接上一个 process.cwd()
+    } else if (this.fs.existsSync(_path2.default.join(process.cwd(), basePath))) {
+      this.basePath = _path2.default.join(process.cwd(), basePath);
+    } else {
+      throw new _errorTypes.MissingImportantFileError(_path2.default.join(process.cwd(), basePath));
+    }
+
+    this.tempFolderPath = '';
+    this.tempFolderCreated = false;
+    this.affixes = {
+      prefix: 'tempFolder',
+      suffix: '.transaction-fs'
+    };
+
+    this.mergeResolution = mergeResolution;
+  }
+
+  // 自己也要做判断：如果临时文件夹已存在就不创建了，如果想创建的文件夹已经存在就不创建了
+
+
+  _createClass(Transaction, [{
+    key: '_check',
+    value: function () {
+      var _ref2 = _asyncToGenerator(regeneratorRuntime.mark(function _callee2(newThingPath) {
+        return regeneratorRuntime.wrap(function _callee2$(_context2) {
+          while (1) {
+            switch (_context2.prev = _context2.next) {
+              case 0:
+                if (typeof newThingPath === 'string') {
+                  _context2.next = 2;
+                  break;
+                }
+
+                throw new TypeError('Value of argument "newThingPath" violates contract.\n\nExpected:\nstring\n\nGot:\n' + _inspect(newThingPath));
+
+              case 2:
+                checkNotSupportedPath(newThingPath);
+
+                _context2.next = 5;
+                return this.fs.exists(_path2.default.join(this.basePath, newThingPath));
+
+              case 5:
+                if (!_context2.sent) {
+                  _context2.next = 7;
+                  break;
+                }
+
+                throw new _errorTypes.AlreadyExistsError(newThingPath);
+
+              case 7:
+                _context2.next = 9;
+                return this.fs.exists(this.basePath);
+
+              case 9:
+                if (_context2.sent) {
+                  _context2.next = 11;
+                  break;
+                }
+
+                throw new _errorTypes.MissingImportantFileError(this.basePath);
+
+              case 11:
+                if (this.tempFolderCreated) {
+                  _context2.next = 16;
+                  break;
+                }
+
+                _context2.next = 14;
+                return _promisedTemp2.default.mkdir(this.affixes);
+
+              case 14:
+                this.tempFolderPath = _context2.sent;
+
+                this.tempFolderCreated = true;
+
+              case 16:
+                _context2.t0 = this.tempFolderCreated;
+
+                if (!_context2.t0) {
+                  _context2.next = 21;
+                  break;
+                }
+
+                _context2.next = 20;
+                return this.fs.exists(this.tempFolderPath);
+
+              case 20:
+                _context2.t0 = !_context2.sent;
+
+              case 21:
+                if (!_context2.t0) {
+                  _context2.next = 23;
+                  break;
+                }
+
+                throw new _errorTypes.MissingImportantFileError(this.tempFolderPath);
+
+              case 23:
+              case 'end':
+                return _context2.stop();
+            }
+          }
+        }, _callee2, this);
+      }));
+
+      function _check(_x2) {
+        return _ref2.apply(this, arguments);
+      }
+
+      return _check;
+    }()
+
+    // 创建一个临时文件夹，在里面创建想创建的文件夹：
+    // 先判断
+    // 然后对于 a/b/c ，递归地创建 temp/a/b/c
+
+  }, {
+    key: 'mkdirs',
+    value: function () {
+      var _ref3 = _asyncToGenerator(regeneratorRuntime.mark(function _callee3(dirPath) {
+        var newPath;
+        return regeneratorRuntime.wrap(function _callee3$(_context3) {
+          while (1) {
+            switch (_context3.prev = _context3.next) {
+              case 0:
+                _context3.prev = 0;
+                _context3.next = 3;
+                return this._check(dirPath);
+
+              case 3:
+                newPath = _path2.default.join(this.tempFolderPath, dirPath);
+                _context3.next = 6;
+                return this.fs.mkdirs(newPath);
+
+              case 6:
+                _context3.next = 12;
+                break;
+
+              case 8:
+                _context3.prev = 8;
+                _context3.t0 = _context3['catch'](0);
+                _context3.next = 12;
+                return this.rollback(_context3.t0);
+
+              case 12:
+              case 'end':
+                return _context3.stop();
+            }
+          }
+        }, _callee3, this, [[0, 8]]);
+      }));
+
+      function mkdirs(_x3) {
+        return _ref3.apply(this, arguments);
+      }
+
+      return mkdirs;
+    }()
+  }, {
+    key: 'writeFile',
+    value: function () {
+      var _ref4 = _asyncToGenerator(regeneratorRuntime.mark(function _callee4(fileName, content) {
+        var newPath;
+        return regeneratorRuntime.wrap(function _callee4$(_context4) {
+          while (1) {
+            switch (_context4.prev = _context4.next) {
+              case 0:
+                _context4.prev = 0;
+                _context4.next = 3;
+                return this._check(fileName);
+
+              case 3:
+                newPath = _path2.default.join(this.tempFolderPath, fileName);
+                _context4.next = 6;
+                return this.fs.writeFile(newPath, content);
+
+              case 6:
+                _context4.next = 12;
+                break;
+
+              case 8:
+                _context4.prev = 8;
+                _context4.t0 = _context4['catch'](0);
+                _context4.next = 12;
+                return this.rollback(_context4.t0);
+
+              case 12:
+              case 'end':
+                return _context4.stop();
+            }
+          }
+        }, _callee4, this, [[0, 8]]);
+      }));
+
+      function writeFile(_x4, _x5) {
+        return _ref4.apply(this, arguments);
+      }
+
+      return writeFile;
+    }()
+
+    // 尝试将临时文件夹里的内容合并到工作目录下，一言不合就回滚
+
+  }, {
+    key: 'commit',
+    value: function () {
+      var _ref5 = _asyncToGenerator(regeneratorRuntime.mark(function _callee5() {
+        return regeneratorRuntime.wrap(function _callee5$(_context5) {
+          while (1) {
+            switch (_context5.prev = _context5.next) {
+              case 0:
+                _context5.prev = 0;
+                _context5.next = 3;
+                return this.fs.mergeDir(this.tempFolderPath, this.basePath, this.mergeResolution);
+
+              case 3:
+                _context5.next = 9;
+                break;
+
+              case 5:
+                _context5.prev = 5;
+                _context5.t0 = _context5['catch'](0);
+                _context5.next = 9;
+                return this.rollback(_context5.t0);
+
+              case 9:
+              case 'end':
+                return _context5.stop();
+            }
+          }
+        }, _callee5, this, [[0, 5]]);
+      }));
+
+      function commit() {
+        return _ref5.apply(this, arguments);
+      }
+
+      return commit;
+    }()
+
+    // 直接把临时文件夹删了了事
+
+  }, {
+    key: 'rollback',
+    value: function () {
+      var _ref6 = _asyncToGenerator(regeneratorRuntime.mark(function _callee6(error) {
+        return regeneratorRuntime.wrap(function _callee6$(_context6) {
+          while (1) {
+            switch (_context6.prev = _context6.next) {
+              case 0:
+                _context6.next = 2;
+                return this.fs.remove(this.tempFolderPath);
+
+              case 2:
+                if (!error) {
+                  _context6.next = 4;
+                  break;
+                }
+
+                throw error;
+
+              case 4:
+              case 'end':
+                return _context6.stop();
+            }
+          }
+        }, _callee6, this);
+      }));
+
+      function rollback(_x6) {
+        return _ref6.apply(this, arguments);
+      }
+
+      return rollback;
+    }()
+
+    // createWriteStreamT(filePath, options) { // https://nodejs.org/api/fs.html#fs_fs_createwritestream_path_options 原生不支持链式调用
+    //   const replacedFilePath = replaceTempPath(filePath, fs.fileNameMap);
+    //   const newPath = path.join(path.dirname(replacedFilePath), `~createWriteStreamT~${path.basename(replacedFilePath)}`);// 创建一个加 ~ 文件，表示这只是暂时的，可能会被回滚
+    //   fs.fileNameMap[replacedFilePath] = newPath;
+
+    //   fs.rollbackStack.unshift(() => { if (fsp.existsSync(newPath)) { return fsp.remove(newPath); } }); // 入栈一个回滚操作：删掉临时文件
+    //   fs.commitStack.unshift(() => fsp.existsSync(replacedFilePath) ?
+    //          fsp.remove(replacedFilePath).then(() => fsp.rename(newPath, replacedFilePath)) :
+    //          fsp.rename(newPath, replacedFilePath)
+    //   ); // 入栈一个提交操作：删掉原文件，把文件名改成正常版本
+
+    //   const _writeStream = fsp.createWriteStream(newPath, options); // 开始创建文件输入流
+    //   return Promise.resolve(_writeStream); // 用起来像 fs.createWriteStreamT('aaa.xml').then(writeStream => {writeStream.write('asdffff'); writeStream.end()}).then(() => fs.commit()).catch(err => console.log(err));
+    // }
+
+
+  }]);
+
+  return Transaction;
+}();
 
 exports.default = fs;
+
+function _inspect(input, depth) {
+  var maxDepth = 4;
+  var maxKeys = 15;
+
+  if (depth === undefined) {
+    depth = 0;
+  }
+
+  depth += 1;
+
+  if (input === null) {
+    return 'null';
+  } else if (input === undefined) {
+    return 'void';
+  } else if (typeof input === 'string' || typeof input === 'number' || typeof input === 'boolean') {
+    return typeof input === 'undefined' ? 'undefined' : _typeof(input);
+  } else if (Array.isArray(input)) {
+    if (input.length > 0) {
+      var _ret = function () {
+        if (depth > maxDepth) return {
+            v: '[...]'
+          };
+
+        var first = _inspect(input[0], depth);
+
+        if (input.every(function (item) {
+          return _inspect(item, depth) === first;
+        })) {
+          return {
+            v: first.trim() + '[]'
+          };
+        } else {
+          return {
+            v: '[' + input.slice(0, maxKeys).map(function (item) {
+              return _inspect(item, depth);
+            }).join(', ') + (input.length >= maxKeys ? ', ...' : '') + ']'
+          };
+        }
+      }();
+
+      if ((typeof _ret === 'undefined' ? 'undefined' : _typeof(_ret)) === "object") return _ret.v;
+    } else {
+      return 'Array';
+    }
+  } else {
+    var keys = Object.keys(input);
+
+    if (!keys.length) {
+      if (input.constructor && input.constructor.name && input.constructor.name !== 'Object') {
+        return input.constructor.name;
+      } else {
+        return 'Object';
+      }
+    }
+
+    if (depth > maxDepth) return '{...}';
+    var indent = '  '.repeat(depth - 1);
+    var entries = keys.slice(0, maxKeys).map(function (key) {
+      return (/^([A-Z_$][A-Z0-9_$]*)$/i.test(key) ? key : JSON.stringify(key)) + ': ' + _inspect(input[key], depth) + ';';
+    }).join('\n  ' + indent);
+
+    if (keys.length >= maxKeys) {
+      entries += '\n  ' + indent + '...';
+    }
+
+    if (input.constructor && input.constructor.name && input.constructor.name !== 'Object') {
+      return input.constructor.name + ' {\n  ' + indent + entries + '\n' + indent + '}';
+    } else {
+      return '{\n  ' + indent + entries + '\n' + indent + '}';
+    }
+  }
+}

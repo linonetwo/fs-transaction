@@ -1,11 +1,12 @@
 {
   "name": "fs-transaction",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "fs with rollback and commit, suitable for maintaining filesystem sync with database.",
   "main": "build/fs-transaction.js",
   "scripts": {
     "test": "node ./node_modules/mocha/bin/mocha -s 250 -c __test__/* --compilers js:babel-core/register --require babel-polyfill --watch",
-    "build": "babel src -d build"
+    "build": "babel src -d build",
+    "prepublish": "npm run build"
   },
   "repository": {
     "type": "git",
