@@ -15,7 +15,7 @@ var _fsPromise = require('fs-promise');
 
 var _fsPromise2 = _interopRequireDefault(_fsPromise);
 
-var _nodeUuid = require('node-uuid');
+var _nodeUuid = require('uuid');
 
 var _path = require('path');
 
