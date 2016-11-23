@@ -15,7 +15,9 @@ var _fsPromise = require('fs-promise');
 
 var _fsPromise2 = _interopRequireDefault(_fsPromise);
 
-var _nodeUuid = require('node-uuid');
+var _uuid = require('uuid');
+
+var _uuid2 = _interopRequireDefault(_uuid);
 
 var _path = require('path');
 
@@ -266,7 +268,7 @@ var Transaction = function () {
       throw new TypeError('Value of argument 0 violates contract.\n\nExpected:\nTransactionConfigType\n\nGot:\n' + _inspect(arguments[0]));
     }
 
-    this.uuid = (0, _nodeUuid.v4)();
+    this.uuid = (0, _uuid2.default)();
     this.fs = _extends({}, fsFunctions, { beginTransaction: undefined });
 
     // 如果传入的是一个绝对路径，就直接在上面干活了

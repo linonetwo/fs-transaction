@@ -1,6 +1,6 @@
 /* eslint no-use-before-define: ["error", { "classes": false }]*/
 import fsp from 'fs-promise';
-import { v4 as uuid } from 'node-uuid';
+import uuid from 'uuid';
 import path from 'path';
 import temp from 'promised-temp';
 

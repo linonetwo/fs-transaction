@@ -1,6 +1,6 @@
 {
   "name": "fs-transaction",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "fs with rollback and commit, suitable for maintaining filesystem sync with database.",
   "main": "build/fs-transaction.js",
   "scripts": {
@@ -30,8 +30,8 @@
     "common-errors": "^1.0.0",
     "eslint": "^3.6.1",
     "fs-promise": "^0.5.0",
-    "node-uuid": "^1.4.7",
-    "promised-temp": "^0.1.0"
+    "promised-temp": "^0.1.0",
+    "uuid": "^3.0.0"
   },
   "devDependencies": {
     "babel-cli": "^6.14.0",
